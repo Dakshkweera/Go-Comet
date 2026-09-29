@@ -1,0 +1,16 @@
+{
+  "name": "@nova/routing",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@nova/contracts": "0.0.0",
+    "@nova/validation": "0.0.0"
+  }
+}
