@@ -24,7 +24,6 @@ const envSchema = z
 
     EXTRACTION_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.8),
     MAX_UPLOAD_MB: z.coerce.number().positive().max(100).default(15),
-    MAX_PDF_PAGES: z.coerce.number().int().positive().max(100).default(10),
     LLM_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(5).default(3),
     LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
   })
@@ -82,7 +81,6 @@ export function loadConfig(env: NodeJS.ProcessEnv, rootDir: string) {
     },
     limits: {
       maxUploadBytes: Math.floor(e.MAX_UPLOAD_MB * 1024 * 1024),
-      maxPdfPages: e.MAX_PDF_PAGES,
     },
   };
 }

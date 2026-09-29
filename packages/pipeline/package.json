@@ -1,0 +1,21 @@
+{
+  "name": "@nova/pipeline",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@nova/contracts": "0.0.0",
+    "@nova/db": "0.0.0",
+    "@nova/extraction": "0.0.0",
+    "@nova/llm": "0.0.0",
+    "@nova/routing": "0.0.0",
+    "@nova/validation": "0.0.0",
+    "drizzle-orm": "^0.44.2"
+  }
+}

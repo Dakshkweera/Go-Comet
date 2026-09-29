@@ -1,21 +1,30 @@
 import Fastify, { type FastifyError, type FastifyServerOptions } from "fastify";
+import fastifyMultipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 import type { ApiError } from "@nova/contracts";
 import type { NovaDb } from "@nova/db";
+import type { Pipeline } from "@nova/pipeline";
 import { registerHealthRoutes } from "./routes/health.js";
+import { registerRunRoutes } from "./routes/runs.js";
 
 export type ServerDeps = {
   db: NovaDb;
+  pipeline: Pipeline;
+  uploadDir: string;
+  maxUploadBytes: number;
   webDistDir?: string | null;
   logger?: FastifyServerOptions["logger"];
 };
 
 const apiError = (code: string, message: string): ApiError => ({ error: { code, message } });
 
-export function buildServer({ db, webDistDir, logger = false }: ServerDeps) {
+export function buildServer(deps: ServerDeps) {
+  const { db, webDistDir, logger = false } = deps;
   const app = Fastify({ logger });
 
+  app.register(fastifyMultipart, { limits: { fileSize: deps.maxUploadBytes, files: 1 } });
   registerHealthRoutes(app, { db });
+  registerRunRoutes(app, deps);
 
   if (webDistDir) {
     app.register(fastifyStatic, { root: webDistDir, wildcard: false });
