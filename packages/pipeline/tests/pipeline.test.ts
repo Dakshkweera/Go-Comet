@@ -146,5 +146,6 @@ describe("normalizeCustomerName", () => {
   it("strips case, punctuation and legal suffixes", () => {
     expect(normalizeCustomerName("BATA INDIA PVT. LTD.")).toBe("bata india");
     expect(normalizeCustomerName("Bata International")).toBe("bata international");
+    expect(normalizeCustomerName("Bata India Limited, Kolkata, India")).toBe("bata india");
   });
 });

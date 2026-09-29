@@ -27,10 +27,14 @@ export function toKg(value: number, unit: string | null | undefined): number | n
   return factor === undefined ? null : value * factor;
 }
 
+const INCOTERM = /\b(EXW|FCA|FAS|FOB|CFR|CIF|CPT|CIP|DAP|DPU|DDP)\b/i;
+
 function normalizeText(field: ExtractionField, value: string): string {
   if (field === "hs_code") return normalizeHsCode(value);
   if (field === "invoice_number") return value.trim();
-  return value.trim().replace(/\s+/g, " ").toLowerCase();
+  if (field === "incoterms") return (value.match(INCOTERM)?.[1] ?? value).trim().toLowerCase();
+  const text = field.startsWith("port_") ? value.split(",")[0]! : value;
+  return text.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 export function createValidator({ minConfidence }: { minConfidence: number }): Validator {

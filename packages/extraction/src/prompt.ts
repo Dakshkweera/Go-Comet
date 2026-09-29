@@ -12,4 +12,6 @@ Each key maps to an object:
 - "candidates": if the document shows different values for the same field, list all of them here; otherwise null.
 - gross_weight also has "unit" (e.g. "kg"), or null.
 
+Formats: consignee_name is the company name only (no address); ports are the port name only; incoterms is the 3-letter code only (e.g. "FOB"); hs_code as printed.
+
 Output only the JSON object.`;

@@ -209,3 +209,15 @@ describe("assessField", () => {
     expect(assessField("incoterms", text("FOB"), 0.8)).toEqual({ reliable: true, reasons: [] });
   });
 });
+
+describe("field-aware normalization", () => {
+  it.each([
+    ["incoterms", "FOB", "FOB Shanghai", "match"],
+    ["incoterms", "FOB", "CIF Chennai", "mismatch"],
+    ["port_of_discharge", "Mumbai", "Mumbai, India", "match"],
+    ["port_of_discharge", "Mumbai", "Chennai, India", "mismatch"],
+  ] as const)("%s: expected %s, found %s → %s", (field, expectedValue, found, status) => {
+    const result = run(rule({ field, expectedValue }), extraction({ [field]: text(found) }));
+    expect(result.status).toBe(status);
+  });
+});

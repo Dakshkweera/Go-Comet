@@ -17,7 +17,8 @@
     "lint": "eslint .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "db:generate": "npm run db:generate -w @nova/db"
+    "db:generate": "npm run db:generate -w @nova/db",
+    "samples": "tsx scripts/make-samples.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.0",
@@ -25,7 +26,9 @@
     "concurrently": "^9.2.0",
     "eslint": "^9.30.0",
     "globals": "^16.3.0",
+    "pdf-lib": "^1.17.1",
     "prettier": "^3.6.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.35.0",
     "vitest": "^3.2.4"

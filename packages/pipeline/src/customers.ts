@@ -17,6 +17,7 @@ const LEGAL_SUFFIXES = new Set([
 
 export function normalizeCustomerName(name: string): string {
   return name
+    .split(/[,\n]/)[0]!
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .split(" ")
