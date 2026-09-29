@@ -16,6 +16,7 @@
     "@nova/extraction": "0.0.0",
     "@nova/llm": "0.0.0",
     "@nova/pipeline": "0.0.0",
+    "@nova/query": "0.0.0",
     "@nova/routing": "0.0.0",
     "@nova/validation": "0.0.0",
     "dotenv": "^17.0.0",

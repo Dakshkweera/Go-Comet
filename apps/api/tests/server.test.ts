@@ -121,6 +121,18 @@ describe("runs API", () => {
   });
 });
 
+describe("POST /api/query", () => {
+  it("rejects an empty question and reports when no model is configured", async () => {
+    const { app } = start();
+    const post = (question: string) =>
+      app.inject({ method: "POST", url: "/api/query", payload: { question } });
+    expect((await post("")).statusCode).toBe(400);
+    const res = await post("How many shipments were flagged?");
+    expect(res.statusCode).toBe(503);
+    expect(res.json().error.code).toBe("QUERY_UNAVAILABLE");
+  });
+});
+
 describe("built web UI", () => {
   it("serves index.html for client routes but not for /api", async () => {
     const dist = tempDir();

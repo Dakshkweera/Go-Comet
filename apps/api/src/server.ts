@@ -4,12 +4,15 @@ import fastifyStatic from "@fastify/static";
 import type { ApiError } from "@nova/contracts";
 import type { NovaDb } from "@nova/db";
 import type { Pipeline } from "@nova/pipeline";
+import type { QueryService } from "@nova/query";
 import { registerHealthRoutes } from "./routes/health.js";
+import { registerQueryRoutes } from "./routes/query.js";
 import { registerRunRoutes } from "./routes/runs.js";
 
 export type ServerDeps = {
   db: NovaDb;
   pipeline: Pipeline;
+  queryService?: QueryService | null;
   uploadDir: string;
   maxUploadBytes: number;
   webDistDir?: string | null;
@@ -25,6 +28,7 @@ export function buildServer(deps: ServerDeps) {
   app.register(fastifyMultipart, { limits: { fileSize: deps.maxUploadBytes, files: 1 } });
   registerHealthRoutes(app, { db });
   registerRunRoutes(app, deps);
+  registerQueryRoutes(app, deps.queryService ?? null);
 
   if (webDistDir) {
     app.register(fastifyStatic, { root: webDistDir, wildcard: false });
