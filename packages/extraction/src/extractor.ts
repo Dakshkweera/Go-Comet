@@ -1,13 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
-import {
-  extractionResultSchema,
-  type ExtractionInput,
-  type ExtractionResult,
-  type ExtractorAgent,
-} from "@nova/contracts";
-import { LlmError, type ContentPart, type LlmClient } from "@nova/llm";
+import type { ExtractionInput, ExtractionResult, ExtractorAgent } from "@nova/contracts";
+import type { ContentPart, LlmClient } from "@nova/llm";
+import { normalizeExtraction } from "./normalize.js";
 import { EXTRACTION_PROMPT } from "./prompt.js";
+import { applyQualityGate, readPdfText } from "./quality.js";
 
 async function documentPart({ filePath, mimeType }: ExtractionInput): Promise<ContentPart> {
   const dataUrl = `data:${mimeType};base64,${(await readFile(filePath)).toString("base64")}`;
@@ -29,15 +26,9 @@ export function createExtractor({ llm, model }: { llm: LlmClient; model: string 
           },
         ],
       });
-      const parsed = extractionResultSchema.safeParse(json);
-      if (!parsed.success) {
-        throw new LlmError(
-          "MODEL_OUTPUT_INVALID",
-          "Model output did not match the extraction schema.",
-          true,
-        );
-      }
-      return parsed.data;
+      const documentText =
+        input.mimeType === "application/pdf" ? await readPdfText(input.filePath) : null;
+      return applyQualityGate(normalizeExtraction(json), documentText);
     },
   };
 }

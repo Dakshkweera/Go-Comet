@@ -12,8 +12,16 @@ export function assessField(
   const reasons: string[] = [];
   const { value, confidence, evidence, candidates } = extracted;
 
+  const conflicting = candidates && new Set(candidates.map(String)).size > 1;
   if (value === null || value === "") {
-    return { reliable: false, reasons: ["not found in the document"] };
+    return {
+      reliable: false,
+      reasons: [
+        conflicting
+          ? `conflicting values in the document (${candidates.join(", ")})`
+          : "not found in the document",
+      ],
+    };
   }
   if (confidence < minConfidence) {
     reasons.push(`low extraction confidence (${confidence.toFixed(2)} < ${minConfidence})`);
@@ -21,7 +29,7 @@ export function assessField(
   if (!evidence) {
     reasons.push("no supporting evidence from the document");
   }
-  if (candidates && new Set(candidates.map(String)).size > 1) {
+  if (conflicting) {
     reasons.push(`conflicting values in the document (${candidates.join(", ")})`);
   }
   if (

@@ -2423,3 +2423,8 @@ It will also provide the underlying data for the required natural-language query
 
 ## ID-8 Sample documents
 - Synthetic, script-generated samples (clean, mismatch, messy). No real customer data.
+
+## ID-9 Extraction normalization and quality gate (after the first live run, 2026-09-30)
+- Live Gemini 2.5 Pro output on the messy sample returned `candidates` as objects (`{value, unit, evidence}`), failing the schema on every attempt. The Extractor now normalizes harmless format variations (object candidates, numbers as text, string confidence) onto the unchanged contract; a field that still cannot be read becomes missing (value null, confidence 0). The whole response is rejected only if it is not a JSON object.
+- Gemini reported confidence 1.0 for every field, including a smudged HS code it misread (`6403.?9` → `6403.29`). The Extractor now applies a deterministic quality gate: confidence is capped at 0.3 for values/evidence with ambiguity marks and at 0.5 when the value is not supported by its own evidence or not found in the PDF text layer. The model's value is kept and shown; the downgrade makes the Validator mark it uncertain.
+- This refines ID-6: grounding the value in the document is part of producing a trustworthy extraction; comparing against customer rules stays in the Validator. Image-only scans have no text layer, so only the evidence and ambiguity checks apply to them.

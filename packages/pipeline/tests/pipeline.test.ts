@@ -1,10 +1,10 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ExtractionResult, ExtractorAgent } from "@nova/contracts";
 import { createDb, seedDb, type NovaDb } from "@nova/db";
-import { createFakeExtractor, FAKE_EXTRACTION } from "@nova/extraction";
+import { createExtractor, createFakeExtractor, FAKE_EXTRACTION } from "@nova/extraction";
 import { LlmError } from "@nova/llm";
 import { createRouter } from "@nova/routing";
 import { createValidator } from "@nova/validation";
@@ -88,6 +88,38 @@ describe("pipeline end to end", () => {
     expect(run.customer?.status).toBe("not_found");
     expect(run.validations).toEqual([]);
     expect(run.decision?.decision).toBe("human_review");
+  });
+
+  it("routes the real messy Gemini response to human review for the right reasons", async () => {
+    const response = JSON.parse(
+      readFileSync(
+        new URL(
+          "../../extraction/tests/fixtures/gemini-messy-candidates-objects.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    );
+    const extractor = createExtractor({ llm: { chatJson: async () => response }, model: "m" });
+    const { runId } = await createRun(db, uploadDir, {
+      buffer: readFileSync(new URL("../../../samples/messy-invoice.pdf", import.meta.url)),
+      filename: "messy-invoice.pdf",
+      mimeType: "application/pdf",
+    });
+    await pipelineWith(extractor).run(runId);
+    const run = getRun(db, runId)!;
+
+    expect(run.attempts).toHaveLength(1);
+    expect(run.extraction?.hs_code.value).toBe("6403.29");
+    const status = Object.fromEntries(run.validations.map((v) => [v.field, v.status]));
+    expect(status).toMatchObject({
+      hs_code: "uncertain",
+      gross_weight: "uncertain",
+      port_of_discharge: "match",
+    });
+    expect(run.decision?.decision).toBe("human_review");
+    expect(run.decision?.reasoning).toContain("hs code (low extraction confidence");
+    expect(run.decision?.reasoning).toContain("conflicting values in the document (900, 1500)");
   });
 
   it("stops after bounded retries and routes to human review", async () => {
