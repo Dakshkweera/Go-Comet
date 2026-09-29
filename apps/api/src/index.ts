@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config as loadDotenv } from "dotenv";
-import { createDb } from "@nova/db";
+import { createDb, seedDb } from "@nova/db";
 import { loadConfig } from "./config.js";
 import { buildServer } from "./server.js";
 
@@ -11,6 +11,7 @@ loadDotenv({ path: resolve(rootDir, ".env"), quiet: true });
 
 const config = loadConfig(process.env, rootDir);
 const db = createDb(config.databasePath);
+seedDb(db);
 const app = buildServer({
   db,
   webDistDir: existsSync(resolve(config.webDistDir, "index.html")) ? config.webDistDir : null,
