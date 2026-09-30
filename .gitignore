@@ -6,5 +6,6 @@ coverage/
 data/*.db
 data/*.db-*
 data/uploads/
+data/live-uploads/
 *.log
 .vite/
