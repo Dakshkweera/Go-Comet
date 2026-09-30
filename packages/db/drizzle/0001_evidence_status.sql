@@ -1,0 +1,1 @@
+ALTER TABLE `extractions` ADD `evidence_status` text;

@@ -221,3 +221,20 @@ describe("field-aware normalization", () => {
     expect(result.status).toBe(status);
   });
 });
+
+describe("evidence status", () => {
+  it("contradicted or ambiguous evidence is unreliable regardless of the confidence threshold", () => {
+    const contradicted = { ...text("640329", 0.95), evidenceStatus: "contradicted" as const };
+    const ambiguous = { ...text("640329", 0.95), evidenceStatus: "ambiguous" as const };
+    expect(assessField("hs_code", contradicted, 0.1)).toEqual({
+      reliable: false,
+      reasons: ["the document text contradicts the extracted value"],
+    });
+    expect(assessField("hs_code", ambiguous, 0.1).reliable).toBe(false);
+  });
+
+  it("unverified evidence alone does not make a field unreliable", () => {
+    const unverified = { ...text("640399", 0.9), evidenceStatus: "unverified" as const };
+    expect(assessField("hs_code", unverified, 0.8)).toEqual({ reliable: true, reasons: [] });
+  });
+});

@@ -3,5 +3,9 @@ export { normalizeExtraction } from "./normalize.js";
 export {
   AMBIGUOUS_CONFIDENCE_CAP,
   applyQualityGate,
-  UNSUPPORTED_CONFIDENCE_CAP,
+  CONTRADICTED_CONFIDENCE_CAP,
+  DocumentReadError,
+  evidenceStatus,
+  readPdfText,
+  UNVERIFIED_CONFIDENCE_FACTOR,
 } from "./quality.js";

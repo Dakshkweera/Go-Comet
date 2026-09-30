@@ -179,3 +179,17 @@ describe("query contracts", () => {
     expect(queryResponseSchema.safeParse(res).success).toBe(true);
   });
 });
+
+describe("evidenceStatus", () => {
+  it("accepts the four statuses and rejects anything else", () => {
+    const withStatus = (evidenceStatus: string) =>
+      extractionResultSchema.safeParse({
+        ...cleanExtraction,
+        hs_code: { ...cleanExtraction.hs_code, evidenceStatus },
+      }).success;
+    for (const s of ["supported", "unverified", "ambiguous", "contradicted"]) {
+      expect(withStatus(s)).toBe(true);
+    }
+    expect(withStatus("verified")).toBe(false);
+  });
+});

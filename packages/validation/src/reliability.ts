@@ -29,6 +29,12 @@ export function assessField(
   if (!evidence) {
     reasons.push("no supporting evidence from the document");
   }
+  if (extracted.evidenceStatus === "contradicted") {
+    reasons.push("the document text contradicts the extracted value");
+  }
+  if (extracted.evidenceStatus === "ambiguous") {
+    reasons.push("the document text for this field is ambiguous");
+  }
   if (conflicting) {
     reasons.push(`conflicting values in the document (${candidates.join(", ")})`);
   }

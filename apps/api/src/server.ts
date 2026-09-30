@@ -14,6 +14,7 @@ export type ServerDeps = {
   pipeline: Pipeline;
   queryService?: QueryService | null;
   uploadDir: string;
+  minConfidence: number;
   maxUploadBytes: number;
   webDistDir?: string | null;
   logger?: FastifyServerOptions["logger"];

@@ -16,6 +16,8 @@ async function documentPart({ filePath, mimeType }: ExtractionInput): Promise<Co
 export function createExtractor({ llm, model }: { llm: LlmClient; model: string }): ExtractorAgent {
   return {
     async extract(input) {
+      const documentText =
+        input.mimeType === "application/pdf" ? await readPdfText(input.filePath) : null;
       const json = await llm.chatJson({
         model,
         messages: [
@@ -26,8 +28,6 @@ export function createExtractor({ llm, model }: { llm: LlmClient; model: string 
           },
         ],
       });
-      const documentText =
-        input.mimeType === "application/pdf" ? await readPdfText(input.filePath) : null;
       return applyQualityGate(normalizeExtraction(json), documentText);
     },
   };

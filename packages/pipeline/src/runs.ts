@@ -1,17 +1,24 @@
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { asc, desc, eq } from "drizzle-orm";
-import type { Discrepancy, ValidationResult } from "@nova/contracts";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { isAbsolute, join, relative, resolve } from "node:path";
+import { and, asc, desc, eq, ne } from "drizzle-orm";
+import {
+  REQUIRED_FIELDS,
+  type Discrepancy,
+  type ExtractionField,
+  type ValidationResult,
+} from "@nova/contracts";
 import {
   customers,
   decisions,
   documents,
+  extractions,
   pipelineRuns,
   pipelineStageRuns,
   validationResults,
   type NovaDb,
 } from "@nova/db";
+import { assessField, type FieldReliability } from "@nova/validation";
 import { loadRules } from "./customers.js";
 import { loadExtraction, newId } from "./orchestrator.js";
 
@@ -59,6 +66,51 @@ export async function createRun(
   return { runId, duplicateOfRunId: duplicate?.id ?? null };
 }
 
+export type DeleteRunResult =
+  | { status: "deleted"; runId: string; documentId: string; fileDeleted: boolean }
+  | { status: "not_found" }
+  | { status: "in_progress" };
+
+const isInside = (dir: string, path: string) => {
+  const rel = relative(resolve(dir), resolve(path));
+  return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+};
+
+export async function deleteRun(
+  db: NovaDb,
+  uploadDir: string,
+  runId: string,
+): Promise<DeleteRunResult> {
+  const run = db.select().from(pipelineRuns).where(eq(pipelineRuns.id, runId)).get();
+  if (!run) return { status: "not_found" };
+  if (run.status === "RECEIVED" || run.status === "PROCESSING") return { status: "in_progress" };
+
+  const doc = db.select().from(documents).where(eq(documents.id, run.documentId)).get();
+  const sharedDocument = db
+    .select({ id: pipelineRuns.id })
+    .from(pipelineRuns)
+    .where(and(eq(pipelineRuns.documentId, run.documentId), ne(pipelineRuns.id, runId)))
+    .get();
+
+  db.transaction((tx) => {
+    tx.delete(extractions).where(eq(extractions.runId, runId)).run();
+    tx.delete(validationResults).where(eq(validationResults.runId, runId)).run();
+    tx.delete(decisions).where(eq(decisions.runId, runId)).run();
+    tx.delete(pipelineStageRuns).where(eq(pipelineStageRuns.runId, runId)).run();
+    tx.delete(pipelineRuns).where(eq(pipelineRuns.id, runId)).run();
+    if (!sharedDocument) tx.delete(documents).where(eq(documents.id, run.documentId)).run();
+  });
+
+  let fileDeleted = false;
+  if (doc && !sharedDocument && isInside(uploadDir, doc.storagePath)) {
+    fileDeleted = await rm(doc.storagePath, { force: true }).then(
+      () => true,
+      () => false,
+    );
+  }
+  return { status: "deleted", runId, documentId: run.documentId, fileDeleted };
+}
+
 export function listRuns(db: NovaDb) {
   return db
     .select({
@@ -75,7 +127,7 @@ export function listRuns(db: NovaDb) {
     .all();
 }
 
-export function getRun(db: NovaDb, runId: string) {
+export function getRun(db: NovaDb, runId: string, configuredMinConfidence: number) {
   const run = db.select().from(pipelineRuns).where(eq(pipelineRuns.id, runId)).get();
   if (!run) return null;
   const doc = db.select().from(documents).where(eq(documents.id, run.documentId)).get()!;
@@ -83,6 +135,8 @@ export function getRun(db: NovaDb, runId: string) {
     ? db.select().from(customers).where(eq(customers.id, run.customerId)).get()
     : undefined;
   const decision = db.select().from(decisions).where(eq(decisions.runId, runId)).get();
+  const extraction = loadExtraction(db, runId);
+  const minConfidence = run.minConfidence ?? configuredMinConfidence;
 
   return {
     id: run.id,
@@ -91,7 +145,15 @@ export function getRun(db: NovaDb, runId: string) {
     createdAt: run.createdAt,
     completedAt: run.completedAt,
     document: { filename: doc.originalFilename, mimeType: doc.mimeType, size: doc.fileSize },
-    extraction: loadExtraction(db, runId),
+    extraction,
+    reliability: extraction
+      ? {
+          minConfidence,
+          fields: Object.fromEntries(
+            REQUIRED_FIELDS.map((f) => [f, assessField(f, extraction[f], minConfidence)]),
+          ) as Record<ExtractionField, FieldReliability>,
+        }
+      : null,
     customer: run.customerResolutionStatus
       ? {
           status: run.customerResolutionStatus,

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   REQUIRED_FIELDS,
   type ExtractionResult,
@@ -29,6 +29,7 @@ export type PipelineDeps = {
   extractor: ExtractorAgent;
   validator: Validator;
   router: Router;
+  minConfidence: number;
   maxAttempts: number;
   retryDelayMs?: number;
 };
@@ -47,6 +48,7 @@ export function loadExtraction(db: NovaDb, runId: string): ExtractionResult | nu
           confidence: r.confidence,
           evidence: r.evidence,
           candidates: r.candidatesJson ? JSON.parse(r.candidatesJson) : null,
+          ...(r.evidenceStatus ? { evidenceStatus: r.evidenceStatus } : {}),
           ...(field === "gross_weight" ? { unit: r.unit } : {}),
         },
       ];
@@ -69,6 +71,15 @@ export function createPipeline(deps: PipelineDeps) {
     const run = db.select().from(pipelineRuns).where(eq(pipelineRuns.id, runId)).get()!;
     const doc = db.select().from(documents).where(eq(documents.id, run.documentId)).get()!;
     let lastError: PipelineError | null = null;
+    db.update(pipelineStageRuns)
+      .set({
+        status: "failed",
+        completedAt: now(),
+        errorCode: "INTERRUPTED",
+        errorMessage: "The process stopped before this attempt finished.",
+      })
+      .where(and(eq(pipelineStageRuns.runId, runId), eq(pipelineStageRuns.status, "running")))
+      .run();
 
     for (let attempt = run.attemptCount + 1; attempt <= deps.maxAttempts; attempt++) {
       const stageId = newId("stage");
@@ -99,6 +110,7 @@ export function createPipeline(deps: PipelineDeps) {
                 confidence: f.confidence,
                 evidence: f.evidence ?? null,
                 candidatesJson: f.candidates ? JSON.stringify(f.candidates) : null,
+                evidenceStatus: f.evidenceStatus ?? null,
               })
               .run();
           }
@@ -118,7 +130,10 @@ export function createPipeline(deps: PipelineDeps) {
         return result;
       } catch (err) {
         const retryable = err instanceof LlmError ? err.retryable : false;
-        const code = err instanceof LlmError ? err.code : "EXTRACTION_FAILED";
+        const code =
+          err instanceof Error && "code" in err && typeof err.code === "string"
+            ? err.code
+            : "EXTRACTION_FAILED";
         const message = err instanceof Error ? err.message : String(err);
         lastError = { code, message, stage: "EXTRACTING", retryable, attempt };
         db.update(pipelineStageRuns)
@@ -202,6 +217,7 @@ export function createPipeline(deps: PipelineDeps) {
           customerResolutionReason: resolution?.reason ?? null,
           finalDecision: decision.decision,
           finalReasoning: decision.reasoning,
+          minConfidence: deps.minConfidence,
           errorCode: errors[0]?.code ?? null,
           errorMessage: errors[0]?.message ?? null,
           updatedAt: now(),

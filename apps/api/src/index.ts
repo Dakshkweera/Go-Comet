@@ -39,6 +39,7 @@ const pipeline = createPipeline({
   extractor,
   validator: createValidator({ minConfidence: policy.extractionMinConfidence }),
   router: createRouter({ minConfidence: policy.extractionMinConfidence }),
+  minConfidence: policy.extractionMinConfidence,
   maxAttempts: llmConfig.maxAttempts,
 });
 
@@ -47,6 +48,7 @@ const app = buildServer({
   pipeline,
   queryService,
   uploadDir: config.uploadDir,
+  minConfidence: policy.extractionMinConfidence,
   maxUploadBytes: config.limits.maxUploadBytes,
   webDistDir: existsSync(resolve(config.webDistDir, "index.html")) ? config.webDistDir : null,
   logger: { level: process.env.LOG_LEVEL ?? "info" },

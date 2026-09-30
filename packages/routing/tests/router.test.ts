@@ -135,6 +135,45 @@ describe("router decision matrix", () => {
     expect(decision.amendmentDraft).toContain("Expected: <= 1000 kg");
   });
 
+  it("keeps known mismatches in the discrepancies when uncertainty forces human review", () => {
+    const decision = router.decide(
+      input({ validations: [v("port_of_discharge", "mismatch"), v("gross_weight", "uncertain")] }),
+    );
+    expect(decision.decision).toBe("human_review");
+    expect(decision.discrepancies).toEqual([
+      {
+        field: "port_of_discharge",
+        found: "Chennai",
+        expected: "Mumbai",
+        reason: "port_of_discharge mismatch",
+      },
+    ]);
+    expect(decision.amendmentDraft).toBeNull();
+    expect(decision.reasoning).toContain("gross weight (gross_weight uncertain)");
+    expect(decision.reasoning).toContain(
+      "1 rule(s) also failed: port of discharge found Chennai, expected Mumbai",
+    );
+  });
+
+  it("keeps known mismatches when an unruled required field is unreliable", () => {
+    const decision = router.decide(
+      input({
+        extraction: { ...extraction, invoice_number: text(null, 0.1) },
+        validations: [v("hs_code", "match"), v("port_of_discharge", "mismatch")],
+      }),
+    );
+    expect(decision.decision).toBe("human_review");
+    expect(decision.discrepancies.map((d) => d.field)).toEqual(["port_of_discharge"]);
+    expect(decision.reasoning).toContain("invoice number (not found in the document)");
+  });
+
+  it("has no discrepancies when human review is caused by uncertainty alone", () => {
+    const decision = router.decide(input({ validations: [v("hs_code", "uncertain")] }));
+    expect(decision.decision).toBe("human_review");
+    expect(decision.discrepancies).toEqual([]);
+    expect(decision.reasoning).not.toContain("also failed");
+  });
+
   it("lists fields that had no rule in the approval reasoning", () => {
     expect(router.decide(input()).reasoning).toContain(
       "Not validated (no customer rule): consignee name",
@@ -146,5 +185,30 @@ describe("router decision matrix", () => {
       input({ extraction: { ...extraction, hs_code: text("640399", 0.4) } }),
     );
     expect(decision.reasoning).toContain("hs code (low extraction confidence");
+  });
+});
+
+describe("evidence status in reasoning", () => {
+  it("names fields that could not be independently verified, without blocking approval", () => {
+    const partly = {
+      ...extraction,
+      port_of_discharge: text("Mumbai"),
+      hs_code: { ...text("640399", 0.9), evidenceStatus: "unverified" as const },
+    };
+    const decision = router.decide(input({ extraction: partly }));
+    expect(decision.decision).toBe("auto_approve");
+    expect(decision.reasoning).toContain(
+      "Not independently verified against the document text: hs code",
+    );
+  });
+
+  it("routes a contradicted field to human review with the reason", () => {
+    const contradicted = {
+      ...extraction,
+      hs_code: { ...text("640329", 0.5), evidenceStatus: "contradicted" as const },
+    };
+    const decision = router.decide(input({ extraction: contradicted }));
+    expect(decision.decision).toBe("human_review");
+    expect(decision.reasoning).toContain("the document text contradicts the extracted value");
   });
 });

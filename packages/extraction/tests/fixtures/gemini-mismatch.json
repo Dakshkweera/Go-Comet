@@ -1,0 +1,51 @@
+{
+  "consignee_name": {
+    "value": "Bata India Limited",
+    "confidence": 1.0,
+    "evidence": "CONSIGNEE: Bata India Limited, Kolkata, India",
+    "candidates": null
+  },
+  "hs_code": {
+    "value": "6403.99",
+    "confidence": 1.0,
+    "evidence": "HS CODE: 6403.99",
+    "candidates": null
+  },
+  "port_of_loading": {
+    "value": "Shanghai",
+    "confidence": 1.0,
+    "evidence": "PORT OF LOADING: Shanghai",
+    "candidates": null
+  },
+  "port_of_discharge": {
+    "value": "Chennai",
+    "confidence": 1.0,
+    "evidence": "PORT OF DISCHARGE: Chennai",
+    "candidates": null
+  },
+  "incoterms": {
+    "value": "CIF",
+    "confidence": 1.0,
+    "evidence": "INCOTERMS: CIF Chennai",
+    "candidates": null
+  },
+  "description_of_goods": {
+    "value": "Leather footwear, men's formal shoes, 1,200 pairs",
+    "confidence": 1.0,
+    "evidence": "DESCRIPTION OF GOODS: Leather footwear, men's formal shoes, 1,200 pairs",
+    "candidates": null
+  },
+  "gross_weight": {
+    "value": 1200,
+    "confidence": 1.0,
+    "evidence": "GROSS WEIGHT: 1,200 KG",
+    "candidates": null,
+    "unit": "KG"
+  },
+  "invoice_number": {
+    "value": "INV-2026-1043",
+    "confidence": 1.0,
+    "evidence": "INVOICE NO: INV-2026-1043",
+    "candidates": null
+  }
+}

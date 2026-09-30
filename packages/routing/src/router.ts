@@ -26,6 +26,15 @@ export function createRouter({ minConfidence }: { minConfidence: number }): Rout
         );
       }
       const customer = `Customer was resolved as ${customerResolution.customerName}.`;
+      const unverified = REQUIRED_FIELDS.filter(
+        (f) => extraction[f].evidenceStatus === "unverified",
+      );
+      const unverifiedNote =
+        unverified.length === 0
+          ? ""
+          : unverified.length === REQUIRED_FIELDS.length
+            ? " No field could be independently verified against the document text; values rely on the vision model."
+            : ` Not independently verified against the document text: ${unverified.map(label).join(", ")}.`;
 
       if (!rulesAvailable || validations.length === 0) {
         return humanReview(`${customer} No validation rules are configured for this customer.`);
@@ -39,22 +48,28 @@ export function createRouter({ minConfidence }: { minConfidence: number }): Rout
       for (const v of validations) {
         if (v.status === "uncertain" && !issues.has(v.field)) issues.set(v.field, v.reason);
       }
+      const discrepancies = validations.filter((v) => v.status === "mismatch").map(toDiscrepancy);
+      const failed = discrepancies
+        .map((d) => `${label(d.field)} found ${d.found}, expected ${d.expected}`)
+        .join("; ");
+
       if (issues.size > 0) {
         const list = [...issues].map(([field, reason]) => `${label(field)} (${reason})`).join("; ");
-        return humanReview(
-          `${customer} Automatic compliance could not be established because of: ${list}.`,
-        );
+        return {
+          ...humanReview(
+            `${customer} Automatic compliance could not be established because of: ${list}.` +
+              (discrepancies.length
+                ? ` ${discrepancies.length} rule(s) also failed: ${failed}.`
+                : ""),
+          ),
+          discrepancies,
+        };
       }
 
-      const mismatches = validations.filter((v) => v.status === "mismatch");
-      if (mismatches.length > 0) {
-        const discrepancies = mismatches.map(toDiscrepancy);
-        const list = discrepancies
-          .map((d) => `${label(d.field)} found ${d.found}, expected ${d.expected}`)
-          .join("; ");
+      if (discrepancies.length > 0) {
         return {
           decision: "amendment_request",
-          reasoning: `${customer} All required fields were read reliably, but ${mismatches.length} rule(s) failed: ${list}.`,
+          reasoning: `${customer} All required fields were read reliably, but ${discrepancies.length} rule(s) failed: ${failed}.${unverifiedNote}`,
           discrepancies,
           amendmentDraft: draftAmendment(extraction.invoice_number.value, discrepancies),
         };
@@ -68,7 +83,8 @@ export function createRouter({ minConfidence }: { minConfidence: number }): Rout
           `${customer} All ${validations.length} configured rules matched and every required field was read reliably.` +
           (notValidated.length
             ? ` Not validated (no customer rule): ${notValidated.join(", ")}.`
-            : ""),
+            : "") +
+          unverifiedNote,
         discrepancies: [],
         amendmentDraft: null,
       };

@@ -1,11 +1,12 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { apiErrorSchema, healthResponseSchema } from "@nova/contracts";
-import { createDb, seedDb, type NovaDb } from "@nova/db";
+import { createDb, documents, seedDb, type NovaDb } from "@nova/db";
 import { createFakeExtractor } from "@nova/extraction";
 import { createPipeline } from "@nova/pipeline";
+import { executeReadOnly } from "@nova/query";
 import { createRouter } from "@nova/routing";
 import { createValidator } from "@nova/validation";
 import { buildServer, type ServerDeps } from "../src/server.js";
@@ -28,6 +29,7 @@ function start(overrides: Partial<ServerDeps> = {}) {
     extractor: createFakeExtractor(),
     validator: createValidator({ minConfidence: 0.8 }),
     router: createRouter({ minConfidence: 0.8 }),
+    minConfidence: 0.8,
     maxAttempts: 3,
     retryDelayMs: 0,
   });
@@ -35,6 +37,7 @@ function start(overrides: Partial<ServerDeps> = {}) {
     db,
     pipeline,
     uploadDir: tempDir(),
+    minConfidence: 0.8,
     maxUploadBytes: 1024 * 1024,
     ...overrides,
   });
@@ -118,6 +121,105 @@ describe("runs API", () => {
   it("returns 404 for an unknown run", async () => {
     const res = await start().app.inject("/api/runs/run_missing");
     expect(res.statusCode).toBe(404);
+  });
+});
+
+describe("GET /api/runs/:id/document", () => {
+  const pdf = Buffer.from("%PDF-1.4 original bytes");
+
+  it("returns the original uploaded file inline with its MIME type", async () => {
+    start();
+    const { runId } = (await upload("invoice.pdf", "application/pdf", pdf)).json();
+    const res = await app!.inject(`/api/runs/${runId}/document`);
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["content-type"]).toBe("application/pdf");
+    expect(res.headers["content-disposition"]).toBe('inline; filename="invoice.pdf"');
+    expect(res.headers["x-content-type-options"]).toBe("nosniff");
+    expect(res.rawPayload.equals(pdf)).toBe(true);
+  });
+
+  it("returns 404 RUN_NOT_FOUND for an unknown run, including path-like ids", async () => {
+    const { app } = start();
+    for (const id of ["run_missing", "..%2F..%2F.env"]) {
+      const res = await app.inject(`/api/runs/${id}/document`);
+      expect(res.statusCode).toBe(404);
+      expect(res.json().error.code).toBe("RUN_NOT_FOUND");
+    }
+  });
+
+  it("returns 404 DOCUMENT_MISSING when the stored file was deleted", async () => {
+    const { db } = start();
+    const { runId } = (await upload("invoice.pdf", "application/pdf", pdf)).json();
+    unlinkSync(db.select().from(documents).get()!.storagePath);
+    const res = await app!.inject(`/api/runs/${runId}/document`);
+    expect(res.statusCode).toBe(404);
+    expect(apiErrorSchema.parse(res.json()).error.code).toBe("DOCUMENT_MISSING");
+  });
+});
+
+describe("DELETE /api/runs/:id", () => {
+  const pdf = Buffer.from("%PDF-1.4 demo invoice");
+
+  async function uploadAndFinish() {
+    const { runId } = (await upload("invoice.pdf", "application/pdf", pdf)).json();
+    let run = (await app!.inject(`/api/runs/${runId}`)).json();
+    for (let i = 0; i < 50 && run.status !== "COMPLETED"; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+      run = (await app!.inject(`/api/runs/${runId}`)).json();
+    }
+    return run;
+  }
+
+  it("deletes a completed run and removes it from every read path", async () => {
+    const { db } = start();
+    const run = await uploadAndFinish();
+    const { storagePath } = db.select().from(documents).get()!;
+
+    const res = await app!.inject({ method: "DELETE", url: `/api/runs/${run.id}` });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ deleted: true, runId: run.id, fileDeleted: true });
+    expect(existsSync(storagePath)).toBe(false);
+    expect((await app!.inject("/api/runs")).json()).toEqual([]);
+    expect((await app!.inject(`/api/runs/${run.id}`)).statusCode).toBe(404);
+    expect((await app!.inject(`/api/runs/${run.id}/document`)).statusCode).toBe(404);
+    const counts = executeReadOnly(
+      db,
+      "SELECT (SELECT COUNT(*) FROM pipeline_runs) AS runs, (SELECT COUNT(*) FROM extractions) AS extractions, (SELECT COUNT(*) FROM customers) AS customers, (SELECT COUNT(*) FROM customer_rules) AS rules",
+    );
+    expect(counts.rows).toEqual([{ runs: 0, extractions: 0, customers: 1, rules: 5 }]);
+  });
+
+  it("returns a structured 404 for an unknown run", async () => {
+    const { app } = start();
+    const res = await app.inject({ method: "DELETE", url: "/api/runs/run_missing" });
+    expect(res.statusCode).toBe(404);
+    expect(apiErrorSchema.parse(res.json()).error.code).toBe("RUN_NOT_FOUND");
+  });
+
+  it("returns 409 while the run is still processing", async () => {
+    const { db, app } = start();
+    const run = await uploadAndFinish();
+    db.$client.prepare("UPDATE pipeline_runs SET status = 'PROCESSING'").run();
+    const res = await app.inject({ method: "DELETE", url: `/api/runs/${run.id}` });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe("RUN_IN_PROGRESS");
+  });
+
+  it("accepts the exact same file again after deletion as a fresh run", async () => {
+    start();
+    const first = await uploadAndFinish();
+    await app!.inject({ method: "DELETE", url: `/api/runs/${first.id}` });
+
+    const second = await uploadAndFinish();
+
+    expect(second.id).not.toBe(first.id);
+    expect(second.status).toBe("COMPLETED");
+    expect(second.attempts).toHaveLength(1);
+    expect(second.decision.decision).toBe("auto_approve");
+    expect((await app!.inject("/api/runs")).json().map((r: { id: string }) => r.id)).toEqual([
+      second.id,
+    ]);
   });
 });
 

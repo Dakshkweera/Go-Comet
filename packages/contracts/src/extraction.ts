@@ -15,11 +15,20 @@ export const extractionFieldSchema = z.enum([
 export type ExtractionField = z.infer<typeof extractionFieldSchema>;
 export const REQUIRED_FIELDS = extractionFieldSchema.options;
 
+export const evidenceStatusSchema = z.enum([
+  "supported",
+  "unverified",
+  "ambiguous",
+  "contradicted",
+]);
+export type EvidenceStatus = z.infer<typeof evidenceStatusSchema>;
+
 export const extractedTextFieldSchema = z.object({
   value: z.string().nullable(),
   confidence: confidenceSchema,
   evidence: z.string().nullable().optional(),
   candidates: z.array(z.string()).nullable().optional(),
+  evidenceStatus: evidenceStatusSchema.optional(),
 });
 export type ExtractedTextField = z.infer<typeof extractedTextFieldSchema>;
 
@@ -29,6 +38,7 @@ export const extractedNumberFieldSchema = z.object({
   unit: z.string().nullable().optional(),
   evidence: z.string().nullable().optional(),
   candidates: z.array(z.number()).nullable().optional(),
+  evidenceStatus: evidenceStatusSchema.optional(),
 });
 export type ExtractedNumberField = z.infer<typeof extractedNumberFieldSchema>;
 

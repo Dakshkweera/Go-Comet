@@ -1,0 +1,51 @@
+{
+  "consignee_name": {
+    "value": "Bata India Limited",
+    "confidence": 0.99,
+    "evidence": "Bata India Limited, Kolkata, India",
+    "candidates": null
+  },
+  "hs_code": {
+    "value": "6403.99",
+    "confidence": 0.99,
+    "evidence": "6403.99",
+    "candidates": null
+  },
+  "port_of_loading": {
+    "value": "Shanghai",
+    "confidence": 0.99,
+    "evidence": "Shanghai",
+    "candidates": null
+  },
+  "port_of_discharge": {
+    "value": "Mumbai",
+    "confidence": 0.99,
+    "evidence": "Mumbai",
+    "candidates": null
+  },
+  "incoterms": {
+    "value": "FOB",
+    "confidence": 0.99,
+    "evidence": "FOB Shanghai",
+    "candidates": null
+  },
+  "description_of_goods": {
+    "value": "Leather footwear, men's formal shoes, 1,200 pairs",
+    "confidence": 0.99,
+    "evidence": "Leather footwear, men's formal shoes, 1,200 pairs",
+    "candidates": null
+  },
+  "gross_weight": {
+    "value": 900,
+    "unit": "KG",
+    "confidence": 0.99,
+    "evidence": "900 KG",
+    "candidates": null
+  },
+  "invoice_number": {
+    "value": "INV-2026-1042",
+    "confidence": 0.99,
+    "evidence": "INV-2026-1042",
+    "candidates": null
+  }
+}
