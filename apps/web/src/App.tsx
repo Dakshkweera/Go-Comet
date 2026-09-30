@@ -1,119 +1,76 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { api, type RunSummary, type RunView } from "./api.js";
-import { QueryPanel } from "./QueryPanel.js";
-import { RunDetail } from "./RunDetail.js";
+import { useEffect } from "react";
+import { AppShell } from "./components/AppShell.js";
+import { EmptyState } from "./components/EmptyState.js";
+import { CustomersPage } from "./pages/Customers.js";
+import { DocumentDetailPage } from "./pages/DocumentDetail.js";
+import { DocumentsPage } from "./pages/Documents.js";
+import { ExceptionsPage } from "./pages/Exceptions.js";
+import { OverviewPage } from "./pages/Overview.js";
+import { QueriesPage } from "./pages/Queries.js";
+import { RulesPage } from "./pages/Rules.js";
+import { Link, matchPath, navigate, usePath } from "./router.js";
 
-const MIN_CONFIDENCE = 0.8;
-const isDone = (status: string) => status === "COMPLETED" || status === "FAILED";
+const TITLES: Record<string, string> = {
+  "/": "Overview",
+  "/documents": "Documents",
+  "/exceptions": "Exceptions",
+  "/queries": "Queries",
+  "/customers": "Customers",
+  "/rules": "Rules",
+};
+
+function Page({ path }: { path: string }) {
+  switch (path) {
+    case "/":
+      return <OverviewPage />;
+    case "/documents":
+      return <DocumentsPage />;
+    case "/exceptions":
+      return <ExceptionsPage />;
+    case "/queries":
+      return <QueriesPage />;
+    case "/customers":
+      return <CustomersPage />;
+    case "/rules":
+      return <RulesPage />;
+  }
+  const detail = matchPath("/documents/:id", path);
+  if (detail) return <DocumentDetailPage key={detail.id} id={detail.id!} />;
+  return (
+    <div className="page">
+      <EmptyState
+        icon="documents"
+        title="Page not found"
+        action={
+          <Link to="/" className="btn btn-secondary btn-sm">
+            Go to overview
+          </Link>
+        }
+      >
+        The page you are looking for does not exist.
+      </EmptyState>
+    </div>
+  );
+}
 
 export function App() {
-  const [runs, setRuns] = useState<RunSummary[]>([]);
-  const [selectedId, setSelectedId] = useState(() => location.hash.slice(1) || null);
-  const [run, setRun] = useState<RunView | null>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-
-  const refreshRuns = useCallback(
-    () =>
-      api
-        .listRuns()
-        .then(setRuns)
-        .catch(() => {}),
-    [],
-  );
+  const raw = usePath();
+  const path = raw.length > 1 ? raw.replace(/\/+$/, "") : raw;
 
   useEffect(() => {
-    refreshRuns();
-  }, [refreshRuns]);
-
-  useEffect(() => {
-    if (!selectedId) return;
-    location.hash = selectedId;
-    let timer: ReturnType<typeof setTimeout>;
-    const load = async () => {
-      try {
-        const next = await api.getRun(selectedId);
-        setRun(next);
-        if (isDone(next.status)) refreshRuns();
-        else timer = setTimeout(load, 1500);
-      } catch (err) {
-        setError((err as Error).message);
-      }
-    };
-    load();
-    return () => clearTimeout(timer);
-  }, [selectedId, refreshRuns]);
-
-  async function upload(e: FormEvent) {
-    e.preventDefault();
-    if (!file) return;
-    setUploading(true);
-    setError(null);
-    try {
-      const { runId } = await api.upload(file);
-      setRun(null);
-      setSelectedId(runId);
-      refreshRuns();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setUploading(false);
+    if (path === "/" && location.hash.startsWith("#run_")) {
+      navigate(`/documents/${location.hash.slice(1)}`, { replace: true });
     }
-  }
+  }, [path]);
+
+  useEffect(() => {
+    if (matchPath("/documents/:id", path)) return;
+    document.title = TITLES[path] ? `${TITLES[path]} · Nova` : "Nova";
+  }, [path]);
 
   return (
-    <main>
-      <h1>Nova — Trade Document Pipeline</h1>
-      <p className="muted">Extract → Validate → Decide. Uncertain fields always go to a human.</p>
-
-      <div className="layout">
-        <aside>
-          <section className="card">
-            <h2>Upload document</h2>
-            <form onSubmit={upload}>
-              <input
-                type="file"
-                accept="application/pdf,image/png,image/jpeg,image/webp"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              />
-              <button disabled={!file || uploading}>{uploading ? "Uploading…" : "Process"}</button>
-            </form>
-            {error && <p className="error">{error}</p>}
-          </section>
-
-          <section className="card">
-            <h2>Recent runs</h2>
-            {runs.length === 0 && <p className="muted">No documents processed yet.</p>}
-            <ul className="runs">
-              {runs.map((r) => (
-                <li key={r.id}>
-                  <button
-                    className={`link ${r.id === selectedId ? "active" : ""}`}
-                    onClick={() => setSelectedId(r.id)}
-                  >
-                    {r.filename}
-                    <span className={`tag ${r.decision ?? "pending"}`}>
-                      {r.decision?.replaceAll("_", " ") ?? r.status.toLowerCase()}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </aside>
-
-        <div>
-          {run ? (
-            <RunDetail run={run} minConfidence={MIN_CONFIDENCE} />
-          ) : (
-            <section className="card muted">
-              Upload a document or pick a run to see its pipeline.
-            </section>
-          )}
-          <QueryPanel />
-        </div>
-      </div>
-    </main>
+    <AppShell>
+      <Page path={path} />
+    </AppShell>
   );
 }
