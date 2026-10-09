@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import type { HealthResponse } from "@nova/contracts";
+import type { HealthResponse } from "../../../../packages/contracts/src/index.js";
 import { api } from "../api.js";
 import { useRuns } from "../data.js";
 import { Link, navigate, usePath } from "../router.js";

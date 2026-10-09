@@ -3,7 +3,7 @@ import {
   REQUIRED_FIELDS,
   type ExtractionField as FieldKey,
   type ValidationResult,
-} from "@nova/contracts";
+} from "../../../../packages/contracts/src/index.js";
 import type { RunView } from "../api.js";
 import {
   candidateList,

@@ -11,10 +11,10 @@ import {
   pipelineRuns,
   seedDb,
   type NovaDb,
-} from "@nova/db";
-import { createFakeExtractor } from "@nova/extraction";
-import { createRouter } from "@nova/routing";
-import { createValidator } from "@nova/validation";
+} from "../../db/src/index.js";
+import { createFakeExtractor } from "../../extraction/src/index.js";
+import { createRouter } from "../../routing/src/index.js";
+import { createValidator } from "../../validation/src/index.js";
 import { createPipeline, createRun, deleteRun, getRun, listRuns } from "../src/index.js";
 
 let db: NovaDb;

@@ -1,5 +1,5 @@
-import { REQUIRED_FIELDS, type Router, type RouterDecision } from "@nova/contracts";
-import { assessField } from "@nova/validation";
+import { REQUIRED_FIELDS, type Router, type RouterDecision } from "../../contracts/src/index.js";
+import { assessField } from "../../validation/src/index.js";
 import { draftAmendment, toDiscrepancy } from "./amendment.js";
 
 const label = (field: string) => field.replaceAll("_", " ");

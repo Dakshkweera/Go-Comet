@@ -7,7 +7,7 @@ import {
   type Discrepancy,
   type ExtractionField,
   type ValidationResult,
-} from "@nova/contracts";
+} from "../../contracts/src/index.js";
 import {
   customers,
   decisions,
@@ -17,8 +17,8 @@ import {
   pipelineStageRuns,
   validationResults,
   type NovaDb,
-} from "@nova/db";
-import { assessField, type FieldReliability } from "@nova/validation";
+} from "../../db/src/index.js";
+import { assessField, type FieldReliability } from "../../validation/src/index.js";
 import { loadRules } from "./customers.js";
 import { loadExtraction, newId } from "./orchestrator.js";
 

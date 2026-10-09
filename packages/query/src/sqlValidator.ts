@@ -1,5 +1,7 @@
-import type { SqlValidationResult } from "@nova/contracts";
+import type { SqlValidationResult } from "../../contracts/src/index.js";
 
+
+//  validate sql genrated to ensure that no harmful statements are executed and only allowed tables are used in the query
 export const ALLOWED_TABLES = new Set([
   "customers",
   "customer_rules",

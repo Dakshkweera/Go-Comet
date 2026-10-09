@@ -1,7 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
-import type { ExtractionInput, ExtractionResult, ExtractorAgent } from "@nova/contracts";
-import type { ContentPart, LlmClient } from "@nova/llm";
+import type {
+  ExtractionInput,
+  ExtractionResult,
+  ExtractorAgent,
+} from "../../contracts/src/index.js";
+import type { ContentPart, LlmClient } from "../../llm/src/index.js";
 import { normalizeExtraction } from "./normalize.js";
 import { EXTRACTION_PROMPT } from "./prompt.js";
 import { applyQualityGate, readPdfText } from "./quality.js";

@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
-import type { CustomerResolution, CustomerRule } from "@nova/contracts";
-import { customerRules, customers, type NovaDb } from "@nova/db";
+import type { CustomerResolution, CustomerRule } from "../../contracts/src/index.js";
+import { customerRules, customers, type NovaDb } from "../../db/src/index.js";
 
 const LEGAL_SUFFIXES = new Set([
   "pvt",

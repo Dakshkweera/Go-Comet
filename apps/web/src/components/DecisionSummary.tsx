@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { REQUIRED_FIELDS } from "@nova/contracts";
+import { REQUIRED_FIELDS } from "../../../../packages/contracts/src/index.js";
 import type { RunView } from "../api.js";
 import {
   capitalize,

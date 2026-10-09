@@ -1,5 +1,5 @@
-import type { HealthResponse, QueryResponse } from "@nova/contracts";
-import type { RunView } from "@nova/pipeline";
+import type { HealthResponse, QueryResponse } from "../../../packages/contracts/src/index.js";
+import type { RunView } from "../../../packages/pipeline/src/index.js";
 
 export type { RunView };
 export type RunSummary = {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ExtractionResult, RouterInput, ValidationResult } from "@nova/contracts";
+import type { ExtractionResult, RouterInput, ValidationResult } from "../../contracts/src/index.js";
 import { createRouter } from "../src/index.js";
 
 const router = createRouter({ minConfidence: 0.8 });

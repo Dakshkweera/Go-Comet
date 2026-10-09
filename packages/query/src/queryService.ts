@@ -4,9 +4,9 @@ import {
   sqlGenerationResultSchema,
   type QueryExecutionResult,
   type QueryResponse,
-} from "@nova/contracts";
-import type { NovaDb } from "@nova/db";
-import type { LlmClient } from "@nova/llm";
+} from "../../contracts/src/index.js";
+import type { NovaDb } from "../../db/src/index.js";
+import type { LlmClient } from "../../llm/src/index.js";
 import { ANSWER_PROMPT, CLASSIFY_PROMPT, GENERAL_PROMPT, SQL_PROMPT } from "./prompts.js";
 import { validateSql } from "./sqlValidator.js";
 
@@ -24,6 +24,7 @@ export class QueryError extends Error {
 
 export type QueryModels = { queryRouter: string; sql: string; answer: string };
 
+// limit output and check is it read only from db
 export function executeReadOnly(db: NovaDb, sql: string): QueryExecutionResult {
   const stmt = db.$client.prepare(
     `SELECT * FROM (${sql.trim().replace(/;\s*$/, "")}) LIMIT ${MAX_ROWS}`,

@@ -1,15 +1,11 @@
 import { existsSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import { apiErrorSchema, healthResponseSchema } from "@nova/contracts";
-import { createDb, documents, seedDb, type NovaDb } from "@nova/db";
-import { createFakeExtractor } from "@nova/extraction";
-import { createPipeline } from "@nova/pipeline";
-import { executeReadOnly } from "@nova/query";
-import { createRouter } from "@nova/routing";
-import { createValidator } from "@nova/validation";
-import { buildServer, type ServerDeps } from "../src/server.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { apiErrorSchema, healthResponseSchema } from "../../../packages/contracts/src/index.js";
+import { documents, type NovaDb } from "../../../packages/db/src/index.js";
+import { executeReadOnly } from "../../../packages/query/src/index.js";
+import type { buildServer } from "../src/server.js";
 
 const tempDirs: string[] = [];
 let db: NovaDb | undefined;
@@ -21,26 +17,20 @@ const tempDir = () => {
   return dir;
 };
 
-function start(overrides: Partial<ServerDeps> = {}) {
-  db = createDb(":memory:");
-  seedDb(db);
-  const pipeline = createPipeline({
-    db,
-    extractor: createFakeExtractor(),
-    validator: createValidator({ minConfidence: 0.8 }),
-    router: createRouter({ minConfidence: 0.8 }),
-    minConfidence: 0.8,
-    maxAttempts: 3,
-    retryDelayMs: 0,
+async function start(env: Record<string, string> = {}) {
+  Object.assign(process.env, {
+    DATABASE_PATH: join(tempDir(), "nova.db"),
+    UPLOAD_DIR: tempDir(),
+    WEB_DIST_DIR: tempDir(),
+    LLM_PROVIDER: "fake",
+    LOG_LEVEL: "silent",
+    ...env,
   });
-  app = buildServer({
-    db,
-    pipeline,
-    uploadDir: tempDir(),
-    minConfidence: 0.8,
-    maxUploadBytes: 1024 * 1024,
-    ...overrides,
-  });
+  vi.resetModules();
+  const container = await import("../src/container.js");
+  const { buildServer } = await import("../src/server.js");
+  db = container.db;
+  app = buildServer();
   return { db, app };
 }
 
@@ -69,20 +59,20 @@ afterEach(async () => {
 
 describe("GET /api/health", () => {
   it("returns ok when the database responds", async () => {
-    const res = await start().app.inject("/api/health");
+    const res = await (await start()).app.inject("/api/health");
     expect(res.statusCode).toBe(200);
     expect(healthResponseSchema.parse(res.json())).toEqual({ status: "ok", db: "ok" });
   });
 
   it("returns 503 when the database is unavailable", async () => {
-    const { db, app } = start();
+    const { db, app } = await start();
     db.$client.close();
     const res = await app.inject("/api/health");
     expect(res.statusCode).toBe(503);
   });
 
   it("returns a structured 404 for unknown API routes", async () => {
-    const res = await start().app.inject("/api/nope");
+    const res = await (await start()).app.inject("/api/nope");
     expect(res.statusCode).toBe(404);
     expect(apiErrorSchema.parse(res.json()).error.code).toBe("NOT_FOUND");
   });
@@ -90,7 +80,7 @@ describe("GET /api/health", () => {
 
 describe("runs API", () => {
   it("accepts a PDF, processes it and returns the full run", async () => {
-    start();
+    await start();
     const res = await upload("invoice.pdf", "application/pdf", "%PDF-1.4 test");
     expect(res.statusCode).toBe(202);
     const { runId } = res.json();
@@ -112,14 +102,14 @@ describe("runs API", () => {
     ["empty file", "empty.pdf", "application/pdf", "", "INVALID_FILE"],
     ["corrupt PDF", "fake.pdf", "application/pdf", "not a pdf", "DOCUMENT_READ_ERROR"],
   ])("rejects %s", async (_label, name, type, content, code) => {
-    start();
+    await start();
     const res = await upload(name, type, content);
     expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe(code);
   });
 
   it("returns 404 for an unknown run", async () => {
-    const res = await start().app.inject("/api/runs/run_missing");
+    const res = await (await start()).app.inject("/api/runs/run_missing");
     expect(res.statusCode).toBe(404);
   });
 });
@@ -128,7 +118,7 @@ describe("GET /api/runs/:id/document", () => {
   const pdf = Buffer.from("%PDF-1.4 original bytes");
 
   it("returns the original uploaded file inline with its MIME type", async () => {
-    start();
+    await start();
     const { runId } = (await upload("invoice.pdf", "application/pdf", pdf)).json();
     const res = await app!.inject(`/api/runs/${runId}/document`);
     expect(res.statusCode).toBe(200);
@@ -139,7 +129,7 @@ describe("GET /api/runs/:id/document", () => {
   });
 
   it("returns 404 RUN_NOT_FOUND for an unknown run, including path-like ids", async () => {
-    const { app } = start();
+    const { app } = await start();
     for (const id of ["run_missing", "..%2F..%2F.env"]) {
       const res = await app.inject(`/api/runs/${id}/document`);
       expect(res.statusCode).toBe(404);
@@ -148,7 +138,7 @@ describe("GET /api/runs/:id/document", () => {
   });
 
   it("returns 404 DOCUMENT_MISSING when the stored file was deleted", async () => {
-    const { db } = start();
+    const { db } = await start();
     const { runId } = (await upload("invoice.pdf", "application/pdf", pdf)).json();
     unlinkSync(db.select().from(documents).get()!.storagePath);
     const res = await app!.inject(`/api/runs/${runId}/document`);
@@ -171,7 +161,7 @@ describe("DELETE /api/runs/:id", () => {
   }
 
   it("deletes a completed run and removes it from every read path", async () => {
-    const { db } = start();
+    const { db } = await start();
     const run = await uploadAndFinish();
     const { storagePath } = db.select().from(documents).get()!;
 
@@ -191,14 +181,14 @@ describe("DELETE /api/runs/:id", () => {
   });
 
   it("returns a structured 404 for an unknown run", async () => {
-    const { app } = start();
+    const { app } = await start();
     const res = await app.inject({ method: "DELETE", url: "/api/runs/run_missing" });
     expect(res.statusCode).toBe(404);
     expect(apiErrorSchema.parse(res.json()).error.code).toBe("RUN_NOT_FOUND");
   });
 
   it("returns 409 while the run is still processing", async () => {
-    const { db, app } = start();
+    const { db, app } = await start();
     const run = await uploadAndFinish();
     db.$client.prepare("UPDATE pipeline_runs SET status = 'PROCESSING'").run();
     const res = await app.inject({ method: "DELETE", url: `/api/runs/${run.id}` });
@@ -207,7 +197,7 @@ describe("DELETE /api/runs/:id", () => {
   });
 
   it("accepts the exact same file again after deletion as a fresh run", async () => {
-    start();
+    await start();
     const first = await uploadAndFinish();
     await app!.inject({ method: "DELETE", url: `/api/runs/${first.id}` });
 
@@ -225,7 +215,7 @@ describe("DELETE /api/runs/:id", () => {
 
 describe("POST /api/query", () => {
   it("rejects an empty question and reports when no model is configured", async () => {
-    const { app } = start();
+    const { app } = await start();
     const post = (question: string) =>
       app.inject({ method: "POST", url: "/api/query", payload: { question } });
     expect((await post("")).statusCode).toBe(400);
@@ -239,7 +229,7 @@ describe("built web UI", () => {
   it("serves index.html for client routes but not for /api", async () => {
     const dist = tempDir();
     writeFileSync(join(dist, "index.html"), "<title>Nova</title>");
-    const { app } = start({ webDistDir: dist });
+    const { app } = await start({ WEB_DIST_DIR: dist });
     for (const url of ["/", "/runs/abc"]) {
       const res = await app.inject(url);
       expect(res.statusCode).toBe(200);

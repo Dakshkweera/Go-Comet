@@ -7,7 +7,7 @@ import {
   type PipelineError,
   type Router,
   type Validator,
-} from "@nova/contracts";
+} from "../../contracts/src/index.js";
 import {
   decisions,
   documents,
@@ -16,8 +16,8 @@ import {
   pipelineStageRuns,
   validationResults,
   type NovaDb,
-} from "@nova/db";
-import { LlmError } from "@nova/llm";
+} from "../../db/src/index.js";
+import { LlmError } from "../../llm/src/index.js";
 import { loadRules, resolveCustomer } from "./customers.js";
 
 export const newId = (prefix: string) => `${prefix}_${randomUUID()}`;

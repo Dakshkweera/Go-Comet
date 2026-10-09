@@ -6,7 +6,7 @@ import {
   type ExtractedTextField,
   type ExtractionField,
   type ExtractionResult,
-} from "@nova/contracts";
+} from "../../contracts/src/index.js";
 import { extractText, getDocumentProxy } from "unpdf";
 
 // Operational heuristics, not calibrated probabilities.

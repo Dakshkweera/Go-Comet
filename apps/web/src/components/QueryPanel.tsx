@@ -14,7 +14,7 @@ import type {
   QueryResponse,
   ValidationStatus,
   EvidenceStatus,
-} from "@nova/contracts";
+} from "../../../../packages/contracts/src/index.js";
 import { api, ApiError } from "../api.js";
 import { useRuns } from "../data.js";
 import {

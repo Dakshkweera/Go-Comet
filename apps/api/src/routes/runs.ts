@@ -1,21 +1,16 @@
 import { readFile } from "node:fs/promises";
 import type { FastifyInstance, FastifyReply } from "fastify";
-import type { NovaDb } from "@nova/db";
 import {
   createRun,
   deleteRun,
   getRun,
   listRuns,
   SUPPORTED_MIME_TYPES,
-  type Pipeline,
-} from "@nova/pipeline";
+} from "../../../../packages/pipeline/src/index.js";
+import { config, db, pipeline } from "../container.js";
 
-export type RunRouteDeps = {
-  db: NovaDb;
-  pipeline: Pipeline;
-  uploadDir: string;
-  minConfidence: number;
-};
+const uploadDir = config.uploadDir;
+const minConfidence = config.policy.extractionMinConfidence;
 
 const badRequest = (reply: FastifyReply, code: string, message: string) =>
   reply.code(400).send({ error: { code, message } });
@@ -23,11 +18,8 @@ const badRequest = (reply: FastifyReply, code: string, message: string) =>
 const notFound = (reply: FastifyReply, code: string, message: string) =>
   reply.code(404).send({ error: { code, message } });
 
-export function registerRunRoutes(
-  app: FastifyInstance,
-  { db, pipeline, uploadDir, minConfidence }: RunRouteDeps,
-) {
-  app.post("/api/runs", async (request, reply) => {
+export default async function runRoutes(app: FastifyInstance) {
+  app.post("/", async (request, reply) => {
     const file = await request.file();
     if (!file) return badRequest(reply, "INVALID_FILE", "Upload a document in the 'file' field.");
     if (!SUPPORTED_MIME_TYPES[file.mimetype]) {
@@ -49,16 +41,16 @@ export function registerRunRoutes(
     return reply.code(202).send(created);
   });
 
-  app.get("/api/runs", async () => listRuns(db));
+  app.get("/", async () => listRuns(db));
 
-  app.get<{ Params: { id: string } }>("/api/runs/:id", async (request, reply) => {
+  app.get<{ Params: { id: string } }>("/:id", async (request, reply) => {
     const run = getRun(db, request.params.id, minConfidence);
     if (!run)
       return reply.code(404).send({ error: { code: "RUN_NOT_FOUND", message: "Run not found." } });
     return run;
   });
 
-  app.delete<{ Params: { id: string } }>("/api/runs/:id", async (request, reply) => {
+  app.delete<{ Params: { id: string } }>("/:id", async (request, reply) => {
     const result = await deleteRun(db, uploadDir, request.params.id);
     if (result.status === "not_found") return notFound(reply, "RUN_NOT_FOUND", "Run not found.");
     if (result.status === "in_progress") {
@@ -73,7 +65,7 @@ export function registerRunRoutes(
     return { deleted: true, runId, documentId, fileDeleted };
   });
 
-  app.get<{ Params: { id: string } }>("/api/runs/:id/document", async (request, reply) => {
+  app.get<{ Params: { id: string } }>("/:id/document", async (request, reply) => {
     const run = db.query.pipelineRuns
       .findFirst({ where: (r, { eq }) => eq(r.id, request.params.id) })
       .sync();

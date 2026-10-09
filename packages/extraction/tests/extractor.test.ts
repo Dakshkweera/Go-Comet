@@ -9,8 +9,13 @@ import {
   REQUIRED_FIELDS,
   type ExtractionField,
   type ExtractionResult,
-} from "@nova/contracts";
-import { LlmError, parseJsonContent, type ChatMessage, type LlmClient } from "@nova/llm";
+} from "../../contracts/src/index.js";
+import {
+  LlmError,
+  parseJsonContent,
+  type ChatMessage,
+  type LlmClient,
+} from "../../llm/src/index.js";
 import {
   AMBIGUOUS_CONFIDENCE_CAP,
   applyQualityGate,

@@ -1,9 +1,10 @@
 import type { FastifyInstance } from "fastify";
-import { queryRequestSchema } from "@nova/contracts";
-import { QueryError, type QueryService } from "@nova/query";
+import { queryRequestSchema } from "../../../../packages/contracts/src/index.js";
+import { QueryError } from "../../../../packages/query/src/index.js";
+import { queryService } from "../container.js";
 
-export function registerQueryRoutes(app: FastifyInstance, queryService: QueryService | null) {
-  app.post("/api/query", async (request, reply) => {
+export default async function queryRoutes(app: FastifyInstance) {
+  app.post("/", async (request, reply) => {
     const body = queryRequestSchema.safeParse(request.body);
     if (!body.success) {
       return reply.code(400).send({

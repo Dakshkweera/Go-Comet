@@ -1,4 +1,8 @@
-import type { RuleOperator, ValidationResult, ValidationStatus } from "@nova/contracts";
+import type {
+  RuleOperator,
+  ValidationResult,
+  ValidationStatus,
+} from "../../../../packages/contracts/src/index.js";
 import type { RunView } from "../api.js";
 import {
   countValidations,

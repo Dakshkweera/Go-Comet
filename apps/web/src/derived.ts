@@ -4,7 +4,7 @@ import type {
   RuleOperator,
   ValidationResult,
   ValidationStatus,
-} from "@nova/contracts";
+} from "../../../packages/contracts/src/index.js";
 import type { RunView } from "./api.js";
 import {
   DECISIONS,

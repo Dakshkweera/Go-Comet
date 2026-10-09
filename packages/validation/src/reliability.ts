@@ -1,4 +1,8 @@
-import type { ExtractedNumberField, ExtractedTextField, ExtractionField } from "@nova/contracts";
+import type {
+  ExtractedNumberField,
+  ExtractedTextField,
+  ExtractionField,
+} from "../../contracts/src/index.js";
 
 export type FieldReliability = { reliable: boolean; reasons: string[] };
 

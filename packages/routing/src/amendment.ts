@@ -1,4 +1,4 @@
-import type { Discrepancy, ValidationResult } from "@nova/contracts";
+import type { Discrepancy, ValidationResult } from "../../contracts/src/index.js";
 
 const withUnit = (n: number, unit: string | null) => (unit ? `${n} ${unit}` : String(n));
 

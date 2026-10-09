@@ -1,35 +1,21 @@
-import Fastify, { type FastifyError, type FastifyServerOptions } from "fastify";
+import Fastify, { type FastifyError } from "fastify";
 import fastifyMultipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
-import type { ApiError } from "@nova/contracts";
-import type { NovaDb } from "@nova/db";
-import type { Pipeline } from "@nova/pipeline";
-import type { QueryService } from "@nova/query";
-import { registerHealthRoutes } from "./routes/health.js";
-import { registerQueryRoutes } from "./routes/query.js";
-import { registerRunRoutes } from "./routes/runs.js";
-
-export type ServerDeps = {
-  db: NovaDb;
-  pipeline: Pipeline;
-  queryService?: QueryService | null;
-  uploadDir: string;
-  minConfidence: number;
-  maxUploadBytes: number;
-  webDistDir?: string | null;
-  logger?: FastifyServerOptions["logger"];
-};
+import type { ApiError } from "../../../packages/contracts/src/index.js";
+import { config, logger, webDistDir } from "./container.js";
+import healthRoutes from "./routes/health.js";
+import queryRoutes from "./routes/query.js";
+import runRoutes from "./routes/runs.js";
 
 const apiError = (code: string, message: string): ApiError => ({ error: { code, message } });
 
-export function buildServer(deps: ServerDeps) {
-  const { db, webDistDir, logger = false } = deps;
+export function buildServer() {
   const app = Fastify({ logger });
 
-  app.register(fastifyMultipart, { limits: { fileSize: deps.maxUploadBytes, files: 1 } });
-  registerHealthRoutes(app, { db });
-  registerRunRoutes(app, deps);
-  registerQueryRoutes(app, deps.queryService ?? null);
+  app.register(fastifyMultipart, { limits: { fileSize: config.limits.maxUploadBytes, files: 1 } });
+  app.register(healthRoutes, { prefix: "/api/health" });
+  app.register(runRoutes, { prefix: "/api/runs" });
+  app.register(queryRoutes, { prefix: "/api/query" });
 
   if (webDistDir) {
     app.register(fastifyStatic, { root: webDistDir, wildcard: false });

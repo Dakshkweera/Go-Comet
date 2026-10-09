@@ -3,8 +3,8 @@ import {
   extractedTextFieldSchema,
   REQUIRED_FIELDS,
   type ExtractionResult,
-} from "@nova/contracts";
-import { LlmError } from "@nova/llm";
+} from "../../contracts/src/index.js";
+import { LlmError } from "../../llm/src/index.js";
 
 type Raw = Record<string, unknown>;
 

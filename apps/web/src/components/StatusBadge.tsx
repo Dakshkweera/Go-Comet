@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { EvidenceStatus, ValidationStatus } from "@nova/contracts";
+import type { EvidenceStatus, ValidationStatus } from "../../../../packages/contracts/src/index.js";
 import { decisionMeta, EVIDENCE, runStatusMeta, VALIDATION, type Tone } from "../domain.js";
 import { Icon, type IconName } from "./Icon.js";
 

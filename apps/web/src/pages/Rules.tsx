@@ -1,6 +1,6 @@
 import "../styles/config.css";
 import { useId, useMemo, type ReactNode } from "react";
-import type { RuleOperator, ValidationStatus } from "@nova/contracts";
+import type { RuleOperator, ValidationStatus } from "../../../../packages/contracts/src/index.js";
 import { EmptyState, ErrorState, LoadingRows } from "../components/EmptyState.js";
 import { Icon } from "../components/Icon.js";
 import { PageHeader } from "../components/PageHeader.js";

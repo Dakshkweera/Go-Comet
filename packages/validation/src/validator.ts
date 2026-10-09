@@ -5,7 +5,7 @@ import {
   type ValidationInput,
   type ValidationResult,
   type Validator,
-} from "@nova/contracts";
+} from "../../contracts/src/index.js";
 import { assessField, normalizeHsCode } from "./reliability.js";
 
 const KG_PER_UNIT: Record<string, number> = {

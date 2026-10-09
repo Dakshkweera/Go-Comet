@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createDb, documents, pipelineRuns, seedDb, type NovaDb } from "@nova/db";
-import type { LlmClient } from "@nova/llm";
+import { createDb, documents, pipelineRuns, seedDb, type NovaDb } from "../../db/src/index.js";
+import type { LlmClient } from "../../llm/src/index.js";
 import { createQueryService, executeReadOnly, QueryError, validateSql } from "../src/index.js";
 
 describe("validateSql", () => {

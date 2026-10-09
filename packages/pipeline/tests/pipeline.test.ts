@@ -3,12 +3,16 @@ import { PDFDocument } from "pdf-lib";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { ExtractionResult, ExtractorAgent } from "@nova/contracts";
-import { createDb, seedDb, type NovaDb } from "@nova/db";
-import { createExtractor, createFakeExtractor, FAKE_EXTRACTION } from "@nova/extraction";
-import { LlmError } from "@nova/llm";
-import { createRouter } from "@nova/routing";
-import { createValidator } from "@nova/validation";
+import type { ExtractionResult, ExtractorAgent } from "../../contracts/src/index.js";
+import { createDb, seedDb, type NovaDb } from "../../db/src/index.js";
+import {
+  createExtractor,
+  createFakeExtractor,
+  FAKE_EXTRACTION,
+} from "../../extraction/src/index.js";
+import { LlmError } from "../../llm/src/index.js";
+import { createRouter } from "../../routing/src/index.js";
+import { createValidator } from "../../validation/src/index.js";
 import { createPipeline, createRun, getRun, normalizeCustomerName } from "../src/index.js";
 
 let db: NovaDb;

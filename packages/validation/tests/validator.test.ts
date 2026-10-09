@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CustomerRule, ExtractionResult } from "@nova/contracts";
+import type { CustomerRule, ExtractionResult } from "../../contracts/src/index.js";
 import { assessField, createValidator } from "../src/index.js";
 
 const validator = createValidator({ minConfidence: 0.8 });

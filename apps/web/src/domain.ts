@@ -8,7 +8,7 @@ import {
   type PipelineStage,
   type ValidationResult,
   type ValidationStatus,
-} from "@nova/contracts";
+} from "../../../packages/contracts/src/index.js";
 import type { RunSummary, RunView } from "./api.js";
 
 // Server default EXTRACTION_MIN_CONFIDENCE; runs report the threshold they were processed with.
