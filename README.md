@@ -7,10 +7,10 @@
 ![Node](https://img.shields.io/badge/Node-22+-339933?logo=node.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
-![Fastify](https://img.shields.io/badge/Fastify-5-000000?logo=fastify&logoColor=white)
+![Express](https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-Drizzle-003B57?logo=sqlite&logoColor=white)
 ![Gemini](https://img.shields.io/badge/Gemini_2.5-via_OpenRouter-4285F4?logo=googlegemini&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-190_passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-196_passing-2ea44f)
 
 [How it works](#-how-it-works) · [Architecture](#-system-architecture) · [Safety](#-safety-by-design) · [The product](#-the-product) · [Run it](#-install-and-run) · [Demo](#-demo-walkthrough)
 
@@ -117,7 +117,7 @@ Model confidence is self-reported, so Nova treats it as a signal, not a probabil
 ```mermaid
 graph LR
     U([Operator]) --> UI["React UI<br/>Vite SPA"]
-    UI -->|REST| API["Fastify API"]
+    UI -->|REST| API["Express API"]
 
     API --> ORC["Pipeline<br/>Orchestrator"]
     ORC --> EX["Extractor Agent"]
@@ -153,7 +153,7 @@ graph LR
 sequenceDiagram
     actor O as Operator
     participant UI as React UI
-    participant API as Fastify API
+    participant API as Express API
     participant P as Orchestrator
     participant X as Extractor
     participant L as Vision LLM
@@ -293,13 +293,13 @@ The UI works from desktop down to phone width. Tables scroll inside their contai
 | Layer | Technology |
 |---|---|
 | Frontend | React 19, Vite 7, TypeScript. A small History-API router, native `<dialog>`, hand-written design system (no UI kit) |
-| Backend | Node.js 22, Fastify 5 (`@fastify/multipart`, `@fastify/static`) |
+| Backend | Node.js 22, Express 5, TypeScript, layered as routes → controllers → services (`multer`, `cors`, `pino-http`) |
 | Database | SQLite via `better-sqlite3` and Drizzle ORM, with versioned migrations |
-| Contracts | Zod schemas for every hand-off between stages, shared by the API and the UI |
+| Contracts | Zod schemas for every hand-off between stages in the backend; the frontend keeps its own typed copy of the API responses |
 | Extraction | Gemini 2.5 Pro (vision) through OpenRouter; `unpdf` for the PDF text cross-check |
 | Query layer | Gemini 2.5 Flash for classification, SQL generation and answers |
 | LLM client | A dependency-free, OpenAI-compatible JSON client with timeouts and retry classification |
-| Quality | Vitest (190 tests), strict TypeScript, ESLint, Prettier |
+| Quality | Vitest (196 tests), strict TypeScript, ESLint, Prettier |
 
 ---
 
@@ -311,14 +311,22 @@ Node.js 22 or later. An [OpenRouter](https://openrouter.ai) API key for live ext
 
 ### 1. Install and configure
 
+Nova is two independent apps: `backend/` (the API) and `frontend/` (the UI). Each has its own `package.json`, install, build and deployment.
+
 ```bash
 git clone https://github.com/Dakshkweera/Go-Comet.git
 cd Go-Comet
+
+cd backend
+npm install
+cp .env.example .env      # then edit it (see below)
+
+cd ../frontend
 npm install
 cp .env.example .env
 ```
 
-In `.env`, set:
+In `backend/.env`, set:
 
 ```bash
 LLM_PROVIDER=openrouter
@@ -332,23 +340,23 @@ The model IDs come preset: Gemini 2.5 Pro for extraction, Gemini 2.5 Flash for q
 
 ### 2. Development
 
-```bash
-npm run dev
-# API → http://127.0.0.1:3000
-# UI  → http://127.0.0.1:5173
-```
-
-### 3. Production
-
-One process serves both the API and the built UI:
+Run each app in its own terminal:
 
 ```bash
-npm run build
-npm start
-# → http://127.0.0.1:3000   (set HOST=0.0.0.0 to expose it)
+cd backend  && npm run dev      # API → http://127.0.0.1:3000
+cd frontend && npm run dev      # UI  → http://127.0.0.1:5173
 ```
 
-The database (`data/nova.db`) is created and migrated automatically on first start, and seeded with the customer **Bata India** and its rules:
+The UI finds the API through `VITE_API_URL` in `frontend/.env`, and the API only accepts browser calls from the origins listed in `CORS_ORIGIN` in `backend/.env`. Both default to the ports above, so open **http://127.0.0.1:5173**.
+
+### 3. Production build
+
+```bash
+cd backend  && npm run build && npm start     # compiles to dist/, runs node dist/server.js
+cd frontend && npm run build                  # static files in dist/
+```
+
+The database (`backend/data/nova.db`) is created and migrated automatically on first start, and seeded with the customer **Bata India** and its rules:
 
 | Field | Rule |
 |---|---|
@@ -358,26 +366,42 @@ The database (`data/nova.db`) is created and migrated automatically on first sta
 | Incoterms | `EXACT` FOB |
 | Gross weight | `MAX` 1,000 kg |
 
-### 4. Deploy (Render)
+### 4. Deploy: backend on Render, frontend on Vercel
 
-Nova is one Node process that serves both the API and the built UI, so it deploys as a single **Web Service**. It needs no CORS setup or API URL, because the UI calls `/api/...` on its own origin.
+Deploy the backend first, because the frontend needs its URL.
+
+**Backend: Render Web Service**
 
 | Setting | Value |
 |---|---|
+| Root Directory | `backend` |
 | Runtime | Node 22 (`NODE_VERSION=22`) |
-| Build command | `npm ci --include=dev && npm run build` (Vite is a dev dependency) |
+| Build command | `npm ci --include=dev && npm run build` (TypeScript is a dev dependency) |
 | Start command | `npm start` |
 | Health check path | `/api/health` |
 
-Environment variables: `HOST=0.0.0.0`, `LLM_PROVIDER=openrouter`, `LLM_API_KEY`, and the four model IDs (`EXTRACTOR_MODEL`, `QUERY_ROUTER_MODEL`, `SQL_MODEL`, `ANSWER_MODEL`, as in `.env.example`). Do not set `PORT`: the host provides it.
+Environment variables: `HOST=0.0.0.0`, `LLM_PROVIDER=openrouter`, `LLM_API_KEY`, the four model IDs (`EXTRACTOR_MODEL`, `QUERY_ROUTER_MODEL`, `SQL_MODEL`, `ANSWER_MODEL`, as in `backend/.env.example`), and `CORS_ORIGIN=https://<your-app>.vercel.app`. Do not set `PORT`: the host provides it.
 
 The database and uploaded files live on local disk. To keep them across restarts, attach a persistent disk and point `DATABASE_PATH` and `UPLOAD_DIR` at it (for example `/var/data/nova.db` and `/var/data/uploads`). Without a disk, data is lost on every restart or redeploy; the customer and rules are re-seeded automatically.
+
+**Frontend: Vercel**
+
+| Setting | Value |
+|---|---|
+| Root Directory | `frontend` |
+| Framework preset | Vite (build `npm run build`, output `dist`) |
+| Environment variable | `VITE_API_URL=https://<your-service>.onrender.com` (no trailing slash) |
+
+`frontend/vercel.json` sends every route to `index.html`, so deep links such as `/documents/run_…` work. `VITE_*` variables are read at **build** time, so redeploy the frontend after changing `VITE_API_URL`.
+
+After the first deploy, put the Vercel URL into the backend's `CORS_ORIGIN`. Vercel preview deployments get their own URLs; list them too (comma-separated), or use `*` for a demo.
+
 
 ---
 
 ## ◎ Demo Walkthrough
 
-Three sample invoices live in `samples/` (regenerate them with `npm run samples`). Each exercises a different path, and all three were verified on a live Gemini 2.5 Pro run:
+Three sample invoices live in `samples/` (regenerate them with `npm run samples` in `backend/`). Each exercises a different path, and all three were verified on a live Gemini 2.5 Pro run:
 
 | Sample | What's inside | Decision |
 |---|---|---|
@@ -432,14 +456,14 @@ Three sample invoices live in `samples/` (regenerate them with `npm run samples`
 Errors always have the same shape: `{ "error": { "code": "RUN_NOT_FOUND", "message": "Run not found." } }`.
 
 <details>
-<summary><b>Configuration</b> (<code>.env</code>)</summary>
+<summary><b>Configuration</b> (<code>backend/.env</code>; the frontend only needs <code>VITE_API_URL</code>)</summary>
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `HOST` / `PORT` | `127.0.0.1` / `3000` | Where the server listens |
 | `DATABASE_PATH` | `./data/nova.db` | SQLite file |
 | `UPLOAD_DIR` | `./data/uploads` | Stored originals |
-| `WEB_DIST_DIR` | `./apps/web/dist` | Built UI served in production |
+| `CORS_ORIGIN` | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated frontend origins allowed to call the API (`*` allows any) |
 | `LLM_PROVIDER` | `fake` | `fake` or `openrouter` |
 | `LLM_BASE_URL` | OpenRouter | Any OpenAI-compatible endpoint |
 | `LLM_API_KEY` | — | Required for `openrouter` |
@@ -458,9 +482,9 @@ Errors always have the same shape: `{ "error": { "code": "RUN_NOT_FOUND", "messa
 ## ✓ Testing
 
 ```bash
-npm test            # 190 tests across 14 files
-npm run typecheck
-npm run lint
+cd backend  && npm test      # 176 tests across 12 files
+cd frontend && npm test      # 20 tests across 2 files
+npm run typecheck            # in each folder; also npm run lint
 ```
 
 The suite covers the contracts; the database schema and migrations; the extractor, normalizer and quality gate (including fixtures of real Gemini output); every reliability rule and validator operator; the complete router decision table; the pipeline's persistence, retries, resume-after-crash and deletion; the SQL guard against injection and write attempts; the API end to end; and the UI's domain logic.
@@ -477,9 +501,9 @@ The suite covers the contracts; the database schema and migrations; the extracto
 
 **Every stage is persisted.** Runs move through `RECEIVED → EXTRACTING → EXTRACTED → COMPLETED`, and each extraction attempt is stored with its status and error. Nothing is recomputed that doesn't need to be, and a crash never costs a second model call for work already done. The stored evidence and rule results can answer "why was this approved?" long after the rules have changed.
 
-**SQLite, one process, no infrastructure.** An embedded database, a single Node process serving both the API and the UI, and configuration through environment variables. It deploys with `npm run build && npm start`, and the database is a single file.
+**SQLite, no infrastructure.** An embedded database and configuration through environment variables: the backend is one Node process with a single database file. The UI is a static site that finds the API through `VITE_API_URL`, so the two deploy independently (Render and Vercel).
 
-**Contracts at every boundary.** Each hand-off (extraction result, customer resolution, validation result, router decision, query response) is a Zod schema in `@nova/contracts`, so the API and the React UI share the same types.
+**Contracts at every boundary.** Each hand-off (extraction result, customer resolution, validation result, router decision, query response) is a Zod schema in `backend/src/schemas`. The frontend deploys separately, so it keeps its own typed copy of the API responses in `frontend/src/types/api.ts`.
 
 ---
 
@@ -487,29 +511,45 @@ The suite covers the contracts; the database schema and migrations; the extracto
 
 ```
 Go-Comet/
-├── apps/
-│   ├── api/                 # Fastify server: runs, documents, query, health
-│   └── web/                 # React UI
-│       └── src/
-│           ├── pages/       # Overview, Documents, DocumentDetail, Exceptions, Queries, Customers, Rules
-│           ├── components/  # App shell, pipeline stepper, decision summary, extraction grid,
-│           │                # validation list, document drawer, upload dropzone, dialogs…
-│           ├── domain.ts    # Decision / issue / pipeline presentation logic
-│           ├── data.ts      # Shared run store with polling
-│           └── router.tsx   # Minimal History-API router
-├── packages/
-│   ├── contracts/           # Zod schemas and types for every hand-off
-│   ├── db/                  # Drizzle schema, migrations, seed
-│   ├── llm/                 # OpenAI-compatible JSON client
-│   ├── extraction/          # Extractor agent, prompt, normalizer, quality gate
-│   ├── validation/          # Field reliability checks, rule evaluation
-│   ├── routing/             # Decision router, amendment draft
-│   ├── pipeline/            # Orchestrator, customer resolution, run storage
-│   └── query/               # NL → SQL, SQL guard, answer generation
-├── samples/                 # clean, mismatch and messy invoices
-├── scripts/                 # Sample generator
-├── docs/                    # PRD, architecture, contracts, data model, decisions
-└── submission/              # PRD and technical write-up (Markdown + PDF)
+├── backend/                     # Express API, deployed on Render
+│   ├── src/
+│   │   ├── server.ts            # Entry point: config, start, graceful shutdown
+│   │   ├── app.ts               # Express app: CORS, logging, routes, error handling
+│   │   ├── container.ts         # Wires the database, LLM client, agents and pipeline
+│   │   ├── config/              # Environment validation
+│   │   ├── routes/              # URL → controller (runs, query, health)
+│   │   ├── controllers/         # HTTP only: read the request, call a service, shape the response
+│   │   ├── middlewares/         # Upload handling, error handling
+│   │   ├── services/            # Business logic
+│   │   │   ├── run.service.ts          # Create, list, read and delete runs
+│   │   │   ├── pipeline.service.ts     # Orchestrator: stages, retries, resume
+│   │   │   ├── customer.service.ts     # Customer resolution and rule loading
+│   │   │   ├── extraction/             # Extractor agent, prompt, normalizer, quality gate
+│   │   │   ├── validation/             # Field reliability checks, rule evaluation
+│   │   │   ├── routing/                # Decision router, amendment draft
+│   │   │   ├── query/                  # NL → SQL, SQL guard, answer generation
+│   │   │   └── llm/                    # OpenAI-compatible JSON client
+│   │   ├── db/                  # Drizzle schema, client, seed
+│   │   ├── schemas/             # Zod contracts for every hand-off
+│   │   └── utils/
+│   ├── drizzle/                 # SQL migrations
+│   ├── tests/                   # Mirrors src/, plus recorded Gemini replies in fixtures/
+│   └── scripts/                 # Sample generator
+├── frontend/                    # React UI, deployed on Vercel
+│   ├── src/
+│   │   ├── pages/               # Overview, Documents, DocumentDetail, Exceptions, Queries, Customers, Rules
+│   │   ├── components/          # App shell, pipeline stepper, decision summary, extraction grid,
+│   │   │                        # validation list, document drawer, upload dropzone, dialogs…
+│   │   ├── types/api.ts         # Typed API responses
+│   │   ├── config.ts            # API base URL from VITE_API_URL
+│   │   ├── api.ts               # Typed API client
+│   │   ├── domain.ts            # Decision / issue / pipeline presentation logic
+│   │   ├── data.ts              # Shared run store with polling
+│   │   └── router.tsx           # Minimal History-API router
+│   └── vercel.json              # SPA rewrites
+├── samples/                     # clean, mismatch and messy invoices
+├── docs/                        # PRD, architecture, contracts, data model, decisions
+└── submission/                  # PRD and technical write-up (Markdown + PDF)
 ```
 
 ---

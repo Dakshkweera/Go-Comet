@@ -1,11 +1,8 @@
 node_modules/
 dist/
-coverage/
 .env
 .env.local
-data/*.db
-data/*.db-*
-data/uploads/
-data/live-uploads/
+backend/data/
+data/
 *.log
 .vite/

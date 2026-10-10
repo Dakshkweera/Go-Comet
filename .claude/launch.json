@@ -2,36 +2,18 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "app",
+      "name": "backend",
       "runtimeExecutable": "powershell",
-      "runtimeArgs": [
-        "-NoProfile",
-        "-Command",
-        "npm run build; if ($?) { npm start }"
-      ],
+      "runtimeArgs": ["-NoProfile", "-Command", "Set-Location backend; npm run dev"],
       "port": 3000,
-      "url": "http://127.0.0.1:3000"
+      "url": "http://127.0.0.1:3000/api/health"
     },
     {
-      "name": "redesign-api",
+      "name": "frontend",
       "runtimeExecutable": "powershell",
-      "runtimeArgs": [
-        "-NoProfile",
-        "-Command",
-        "$env:PORT='3210'; $env:DATABASE_PATH='C:/Users/BIT/AppData/Local/Temp/claude/C--Users-BIT-Desktop-GO-Comet/f343dc5e-9e3b-41b5-9688-0aee38ae6fdd/scratchpad/data/live.db'; $env:UPLOAD_DIR='C:/Users/BIT/AppData/Local/Temp/claude/C--Users-BIT-Desktop-GO-Comet/f343dc5e-9e3b-41b5-9688-0aee38ae6fdd/scratchpad/data/uploads'; $env:WEB_DIST_DIR='C:/Users/BIT/AppData/Local/Temp/claude/C--Users-BIT-Desktop-GO-Comet/f343dc5e-9e3b-41b5-9688-0aee38ae6fdd/scratchpad/no-dist'; npx tsx apps/api/src/index.ts"
-      ],
-      "port": 3210
-    },
-    {
-      "name": "redesign-web",
-      "runtimeExecutable": "powershell",
-      "runtimeArgs": [
-        "-NoProfile",
-        "-Command",
-        "$env:PORT='3210'; npx vite apps/web --port 5174 --strictPort --force"
-      ],
-      "port": 5174,
-      "url": "http://127.0.0.1:5174"
+      "runtimeArgs": ["-NoProfile", "-Command", "Set-Location frontend; npm run dev"],
+      "port": 5173,
+      "url": "http://127.0.0.1:5173"
     }
   ]
 }
