@@ -101,7 +101,7 @@ function ImageViewer({ url, filename }: { url: string; filename: string }) {
   );
 }
 
-function Viewer({
+export function Viewer({
   source,
   filename,
   openUrl,

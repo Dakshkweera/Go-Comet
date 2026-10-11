@@ -134,3 +134,230 @@ export type QueryResponse = {
   data: QueryExecutionResult | null;
   sql: string | null;
 };
+
+// ---------------------------------------------------------------------------------------------
+// Part 2: supplier emails and shipments (backend docs/PART2_DESIGN.md §11).
+
+export type ShipmentStatus =
+  | "RECEIVED"
+  | "PROCESSING"
+  | "NEEDS_REVIEW"
+  | "AMENDMENT_READY"
+  | "APPROVAL_READY"
+  | "AMENDMENT_SENT"
+  | "APPROVAL_SENT"
+  | "FAILED";
+
+export type ShipmentStage = "intake" | "validation";
+export type DocType =
+  "COMMERCIAL_INVOICE" | "BOL" | "PACKING_LIST" | "CERTIFICATE_OF_ORIGIN" | "OTHER";
+// §11 describes reading / read / failed; the backend also reports "processing" mid-read.
+export type DocumentStatus = "pending" | "processing" | "extracted" | "failed";
+export type ConfidenceLevel = "low" | "medium" | "high";
+export type FieldState = "ok" | "amendment" | "review";
+// §11 lists four rule statuses; before validation runs the backend also sends "not_checked".
+export type RuleStatus = "match" | "mismatch" | "uncertain" | "no_rule" | "not_checked";
+export type Consistency = "consistent" | "inconsistent" | "single_source" | "not_checked";
+export type IssueSeverity = "review" | "amendment";
+export type ReviewActionName = "clarify" | "amend";
+export type InputRequirement = "none" | "optional" | "required";
+export type ActionRule = { value: InputRequirement; note: InputRequirement };
+export type OutboundKind = "approval" | "amendment";
+
+export type ShipmentParty = { name: string; address: string };
+
+export type ShipmentSummary = {
+  id: string;
+  reference: string;
+  subject: string;
+  supplier: ShipmentParty;
+  customer: { id?: string; name: string } | null;
+  status: ShipmentStatus;
+  stage: ShipmentStage;
+  decision: Decision | null;
+  headline: string;
+  cycle: number;
+  attachments: number;
+  openReviewItems: number;
+  amendmentItems: number;
+  receivedAt: string;
+  updatedAt: string;
+};
+
+export type ShipmentEmail = {
+  id: string;
+  cycle: number;
+  from: string;
+  subject: string;
+  receivedAt: string;
+  bodyText: string;
+  documentIds: string[];
+};
+
+export type ShipmentDocument = {
+  id: string;
+  runId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  cycle: number;
+  current: boolean;
+  unchangedFromCycle: number | null;
+  // Null for an attachment that could not be read, although §11 shows strings.
+  docType: DocType | null;
+  docTypeLabel: string | null;
+  docTypeReason: string | null;
+  status: DocumentStatus;
+  error: { code: string; message: string } | null;
+  fileUrl: string;
+};
+
+export type FieldObservation = {
+  documentId: string;
+  filename: string;
+  docType: DocType | null;
+  value: string | number | null;
+  unit: string | null;
+  confidence: number;
+  confidenceLevel: ConfidenceLevel;
+  reliable: boolean;
+  reasons: string[];
+  evidence: string | null;
+  evidenceStatus: EvidenceStatus | null;
+  isOwner: boolean;
+  agrees: boolean | null;
+  verifiedByCg?: boolean;
+};
+
+export type ShipmentField = {
+  field: ExtractionField;
+  label: string;
+  state: FieldState;
+  ruleStatus: RuleStatus;
+  consistency: Consistency;
+  ownerDocType: DocType | null;
+  value: string | number | null;
+  unit: string | null;
+  expected: string | null;
+  reason: string | null;
+  observations: FieldObservation[];
+};
+
+export type IssueReference =
+  { source: "rule"; ruleId: string } | { source: "document"; documentId: string };
+
+export type IssueResolution = {
+  action: ReviewActionName;
+  value: string | null;
+  note: string | null;
+  at: string;
+};
+
+export type ShipmentIssue = {
+  key: string;
+  stage: ShipmentStage;
+  severity: IssueSeverity;
+  kind: string;
+  field: ExtractionField | null;
+  fieldLabel: string | null;
+  documents: { id: string; filename: string; docType: DocType | null }[];
+  found: string | null;
+  expected: string | null;
+  reference: IssueReference | null;
+  message: string;
+  request: string;
+  allowedActions: ReviewActionName[];
+  actionRules: Partial<Record<ReviewActionName, ActionRule>>;
+  resolution: IssueResolution | null;
+};
+
+export type Draft = {
+  id: string;
+  kind: OutboundKind;
+  version: number;
+  to: string;
+  subject: string;
+  body: string;
+  generatedBody: string;
+  edited: boolean;
+  status: string;
+  previousVersionEdited: boolean;
+  canSend: boolean;
+  sendBlockedReason: string | null;
+};
+
+export type SentReference = {
+  id: string;
+  kind: OutboundKind;
+  to: string;
+  subject: string;
+  sentAt: string;
+};
+
+export type ShipmentEvent = { type: string; message: string; at: string };
+
+export type ShipmentView = ShipmentSummary & {
+  reasoning: string | null;
+  customerResolution: { status: string; name: string | null; reason: string | null } | null;
+  emails: ShipmentEmail[];
+  progress: { total: number; done: number; failed: number };
+  documents: ShipmentDocument[];
+  fields: ShipmentField[];
+  issues: ShipmentIssue[];
+  // Null while only review items are open, and also after the reply was sent.
+  draft: Draft | null;
+  sent: SentReference[];
+  events: ShipmentEvent[];
+};
+
+export type SentEmail = {
+  id: string;
+  shipmentId: string;
+  reference: string;
+  kind: OutboundKind;
+  cycle: number;
+  from: string;
+  to: string;
+  subject: string;
+  body: string;
+  edited: boolean;
+  sentAt: string;
+};
+
+export type ReviewRequest = {
+  issueKey: string;
+  action: ReviewActionName;
+  value?: string;
+  note?: string;
+};
+
+export type SampleEmail = {
+  name: string;
+  subject: string;
+  from: string;
+  inReplyTo?: string | null;
+  attachments: string[];
+};
+
+export type EmailUploadResult = {
+  shipmentId: string;
+  emailId: string;
+  cycle: number;
+  duplicate: boolean;
+};
+
+export type DeleteShipmentResult = {
+  deleted: true;
+  shipmentId: string;
+  reference: string;
+  filesDeleted: number;
+};
+
+export type Metrics = {
+  northStar: { name: string; value: number | null };
+  shipments: number;
+  byStatus: Partial<Record<ShipmentStatus, number>>;
+  needsReview: number;
+  replies: { sent: number; unedited: number; edited: number };
+  averageCycles: number | null;
+};

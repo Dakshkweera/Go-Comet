@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   decisionMeta,
   formatDateTime,
@@ -9,6 +9,7 @@ import {
   type RunRecord,
   type Tone,
 } from "../domain.js";
+import { toneIcon } from "../shipmentDomain.js";
 import { Link } from "../router.js";
 import { EmptyState } from "./EmptyState.js";
 import { Icon, type IconName } from "./Icon.js";
@@ -17,14 +18,6 @@ const OUTCOME: Record<string, string> = {
   auto_approve: "auto-approved",
   human_review: "routed to human review",
   amendment_request: "flagged for amendment",
-};
-
-const TONE_ICON: Record<Tone, IconName> = {
-  success: "checkCircle",
-  warning: "alert",
-  danger: "xCircle",
-  info: "clock",
-  neutral: "file",
 };
 
 type Entry = { tone: Tone; busy: boolean; outcome: string; meta: string; at: string };
@@ -65,14 +58,76 @@ function describe(run: RunRecord): Entry {
   };
 }
 
-export function ActivityList({ runs, limit = 6 }: { runs: RunRecord[]; limit?: number }) {
+export type FeedItem = {
+  key: string;
+  tone: Tone;
+  icon: IconName;
+  busy?: boolean;
+  title: ReactNode;
+  meta?: string;
+  at: string;
+  to?: string;
+};
+
+export function ActivityFeed({
+  items,
+  absoluteTime = false,
+}: {
+  items: FeedItem[];
+  absoluteTime?: boolean;
+}) {
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
+    if (absoluteTime) return;
     const timer = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(timer);
-  }, []);
+  }, [absoluteTime]);
 
+  return (
+    <ul className="ov-activity">
+      {items.map((item) => {
+        const content = (
+          <>
+            <span className={`ov-activity-icon tone-${item.tone}`}>
+              {item.busy ? (
+                <span className="spinner ov-activity-spinner" />
+              ) : (
+                <Icon name={item.icon} size={14} strokeWidth={2} />
+              )}
+            </span>
+            <span className="ov-activity-main">
+              <span className="ov-activity-line">
+                <span className="ov-activity-text">{item.title}</span>
+                <time
+                  className="ov-activity-time"
+                  dateTime={item.at}
+                  title={formatDateTime(item.at)}
+                >
+                  {absoluteTime ? formatDateTime(item.at) : timeAgo(item.at, now)}
+                </time>
+              </span>
+              {item.meta && <span className="ov-activity-meta">{item.meta}</span>}
+            </span>
+          </>
+        );
+        return (
+          <li key={item.key}>
+            {item.to ? (
+              <Link to={item.to} className="ov-activity-item">
+                {content}
+              </Link>
+            ) : (
+              <div className="ov-activity-item">{content}</div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+export function ActivityList({ runs, limit = 6 }: { runs: RunRecord[]; limit?: number }) {
   if (runs.length === 0) {
     return (
       <EmptyState compact icon="clock" title="No activity yet">
@@ -82,38 +137,24 @@ export function ActivityList({ runs, limit = 6 }: { runs: RunRecord[]; limit?: n
   }
 
   return (
-    <ul className="ov-activity">
-      {runs.slice(0, limit).map((run) => {
+    <ActivityFeed
+      items={runs.slice(0, limit).map((run) => {
         const entry = describe(run);
-        return (
-          <li key={run.id}>
-            <Link to={`/documents/${run.id}`} className="ov-activity-item">
-              <span className={`ov-activity-icon tone-${entry.tone}`}>
-                {entry.busy ? (
-                  <span className="spinner ov-activity-spinner" />
-                ) : (
-                  <Icon name={TONE_ICON[entry.tone]} size={14} strokeWidth={2} />
-                )}
-              </span>
-              <span className="ov-activity-main">
-                <span className="ov-activity-line">
-                  <span className="ov-activity-text">
-                    <strong>{run.filename}</strong> {entry.outcome}
-                  </span>
-                  <time
-                    className="ov-activity-time"
-                    dateTime={entry.at}
-                    title={formatDateTime(entry.at)}
-                  >
-                    {timeAgo(entry.at, now)}
-                  </time>
-                </span>
-                {entry.meta && <span className="ov-activity-meta">{entry.meta}</span>}
-              </span>
-            </Link>
-          </li>
-        );
+        return {
+          key: run.id,
+          tone: entry.tone,
+          icon: toneIcon(entry.tone),
+          busy: entry.busy,
+          title: (
+            <>
+              <strong>{run.filename}</strong> {entry.outcome}
+            </>
+          ),
+          meta: entry.meta,
+          at: entry.at,
+          to: `/documents/${run.id}`,
+        };
       })}
-    </ul>
+    />
   );
 }

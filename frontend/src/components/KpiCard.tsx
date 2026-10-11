@@ -11,7 +11,7 @@ export function KpiCard({
   to,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   detail?: string;
   icon: IconName;
   tone?: Tone;
@@ -26,7 +26,9 @@ export function KpiCard({
         <span className="ov-kpi-label">{label}</span>
         {to && <Icon name="arrowRight" size={14} className="ov-kpi-arrow" />}
       </span>
-      <span className="ov-kpi-value">{value.toLocaleString()}</span>
+      <span className="ov-kpi-value">
+        {typeof value === "number" ? value.toLocaleString() : value}
+      </span>
       {detail && <span className="ov-kpi-detail">{detail}</span>}
     </>
   );

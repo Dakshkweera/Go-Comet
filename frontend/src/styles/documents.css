@@ -88,3 +88,7 @@
     max-width: none;
   }
 }
+
+.docs-upload {
+  max-width: 760px;
+}

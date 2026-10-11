@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { EvidenceStatus, ValidationStatus } from "../types/api.js";
 import { decisionMeta, EVIDENCE, runStatusMeta, VALIDATION, type Tone } from "../domain.js";
+import { isProcessing, shipmentStatusMeta } from "../shipmentDomain.js";
 import { Icon, type IconName } from "./Icon.js";
 
 const TONE_ICON: Record<Tone, IconName | null> = {
@@ -74,6 +75,23 @@ export function ValidationBadge({ status }: { status: ValidationStatus }) {
   const meta = VALIDATION[status];
   return (
     <Badge tone={meta.tone} size="sm">
+      {meta.label}
+    </Badge>
+  );
+}
+
+export function ShipmentStatusBadge({
+  status,
+  size,
+}: {
+  status: string;
+  size?: "sm" | "md" | "lg";
+}) {
+  const meta = shipmentStatusMeta(status);
+  const busy = isProcessing(status);
+  return (
+    <Badge tone={meta.tone} size={size} icon={busy ? null : undefined}>
+      {busy && <span className="spinner dd-badge-spinner" aria-hidden="true" />}
       {meta.label}
     </Badge>
   );

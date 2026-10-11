@@ -1,91 +1,127 @@
 import "../styles/overview.css";
-import { ActivityList } from "../components/ActivityList.js";
-import { EmptyState, ErrorState, LoadingRows } from "../components/EmptyState.js";
-import { Icon } from "../components/Icon.js";
+import { EmptyState, ErrorState } from "../components/EmptyState.js";
+import { Icon, type IconName } from "../components/Icon.js";
 import { KpiCard } from "../components/KpiCard.js";
 import { PageHeader, SectionHeader } from "../components/PageHeader.js";
-import { ShipmentTable } from "../components/ShipmentTable.js";
-import { UploadDropzone } from "../components/UploadDropzone.js";
-import { refreshRuns, RUN_LIST_LIMIT, useRuns } from "../data.js";
-import { isFinal, timeAgo, type RunRecord } from "../domain.js";
+import { RefreshButton } from "../components/RefreshButton.js";
+import { ShipmentFeed } from "../components/ShipmentFeed.js";
+import type { Tone } from "../domain.js";
+import { useMetrics, useShipments } from "../shipmentData.js";
+import {
+  attentionShipments,
+  formatMinutes,
+  pipelineCounts,
+  recentShipments,
+  type PipelineKey,
+} from "../shipmentDomain.js";
 import { Link } from "../router.js";
 
-const FLOW = ["Extract fields", "Resolve customer", "Validate rules", "Route decision"];
+const STAGES: {
+  key: PipelineKey;
+  label: string;
+  detail: string;
+  icon: IconName;
+  tone: Tone;
+  to: string;
+}[] = [
+  {
+    key: "processing",
+    label: "Processing",
+    detail: "Being read right now",
+    icon: "clock",
+    tone: "info",
+    to: "/processing",
+  },
+  {
+    key: "review",
+    label: "Needs review",
+    detail: "Waiting for your decision",
+    icon: "alert",
+    tone: "warning",
+    to: "/exceptions?filter=review",
+  },
+  {
+    key: "amendment",
+    label: "Amendment ready",
+    detail: "Reply drafted for the supplier",
+    icon: "xCircle",
+    tone: "danger",
+    to: "/exceptions?filter=amendment",
+  },
+  {
+    key: "approval",
+    label: "Ready to approve",
+    detail: "All checks passed",
+    icon: "checkCircle",
+    tone: "success",
+    to: "/shipments?filter=approval",
+  },
+  {
+    key: "waiting",
+    label: "Waiting for supplier",
+    detail: "Amendment sent, no answer yet",
+    icon: "send",
+    tone: "neutral",
+    to: "/shipments?filter=waiting",
+  },
+  {
+    key: "done",
+    label: "Done",
+    detail: "Approved and sent",
+    icon: "check",
+    tone: "success",
+    to: "/shipments?filter=done",
+  },
+];
 
-function Metrics({ runs, truncated }: { runs: RunRecord[]; truncated: boolean }) {
-  const inProgress = runs.filter((r) => !isFinal(r.status)).length;
-  const failed = runs.filter((r) => r.status === "FAILED").length;
-  const processed = runs.length - inProgress;
-  const count = (decision: string) => runs.filter((r) => r.decision === decision).length;
-  const share = (n: number) =>
-    processed > 0 ? `${Math.round((n / processed) * 100)}% of processed` : "Awaiting first result";
-  const approved = count("auto_approve");
-  const review = count("human_review");
-  const amendments = count("amendment_request");
-  const activity = [
-    inProgress > 0 ? `${inProgress} in progress` : null,
-    failed > 0 ? `${failed} failed` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+const FLOW = [
+  "Email received",
+  "Attachments read",
+  "Checked against rules",
+  "You review",
+  "Reply sent",
+];
+
+function Results() {
+  const metrics = useMetrics();
+  if (!metrics) return null;
 
   return (
-    <section className="ov-metrics" aria-label="Key metrics">
-      <div className="ov-kpis">
+    <section className="section" aria-labelledby="ov-results-title">
+      <SectionHeader
+        id="ov-results-title"
+        title="Results"
+        subtitle="How the replies to suppliers are going"
+      />
+      <div className="ov-kpis ov-kpis-three">
         <KpiCard
-          label="Processed"
-          value={processed}
-          icon="documents"
-          tone="info"
-          detail={activity || `Last upload ${timeAgo(runs[0]?.createdAt)}`}
-          to="/documents"
-        />
-        <KpiCard
-          label="Auto approved"
-          value={approved}
-          icon="checkCircle"
+          label="Replies sent"
+          value={metrics.replies.sent}
+          icon="send"
           tone="success"
-          detail={share(approved)}
-          to="/documents?decision=auto_approve"
+          detail={
+            metrics.replies.sent > 0
+              ? `${metrics.replies.unedited} unedited · ${metrics.replies.edited} edited`
+              : "Simulated, after your review"
+          }
+          to="/sent-emails"
         />
         <KpiCard
-          label="Human review"
-          value={review}
-          icon="alert"
-          tone="warning"
-          detail={share(review)}
-          to="/exceptions?type=review"
+          label="Median time to reply"
+          value={formatMinutes(metrics.northStar.value)}
+          icon="clock"
+          tone="neutral"
+          detail="From supplier email to reply sent"
         />
         <KpiCard
-          label="Amendment requests"
-          value={amendments}
-          icon="xCircle"
-          tone="danger"
-          detail={share(amendments)}
-          to="/exceptions?type=amendment"
+          label="Emails per shipment"
+          value={metrics.averageCycles === null ? "—" : metrics.averageCycles.toFixed(1)}
+          icon="mail"
+          tone="neutral"
+          detail="Back-and-forth with the supplier"
         />
       </div>
-      {truncated && (
-        <p className="ov-kpi-note">
-          <Icon name="info" size={13} />
-          Counts cover the latest {RUN_LIST_LIMIT} runs.
-        </p>
-      )}
     </section>
-  );
-}
-
-function MetricsSkeleton() {
-  return (
-    <div className="ov-kpis" aria-busy="true" aria-label="Loading metrics">
-      {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="ov-kpi">
-          <span className="skeleton ov-sk-label" />
-          <span className="skeleton ov-sk-value" />
-          <span className="skeleton ov-sk-detail" />
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -97,14 +133,19 @@ function GetStarted() {
       </span>
       <div className="ov-intro-text">
         <h2 className="ov-intro-title" id="ov-intro-title">
-          No documents processed yet
+          No supplier emails yet
         </h2>
         <p>
-          Upload a trade document to start your first pipeline run. Metrics, exceptions and
-          shipments will appear here.
+          When a supplier emails shipment documents, Nova reads them, checks them against the
+          customer’s rules and prepares a reply for you to review.
+        </p>
+        <p>
+          <Link to="/simulate" className="btn btn-secondary btn-sm">
+            Simulate a supplier email
+          </Link>
         </p>
       </div>
-      <ol className="ov-flow" aria-label="Pipeline steps">
+      <ol className="ov-flow" aria-label="How an email is handled">
         {FLOW.map((step, i) => (
           <li key={step}>
             {i > 0 && <Icon name="chevronRight" size={13} className="text-faint" />}
@@ -116,77 +157,120 @@ function GetStarted() {
   );
 }
 
+function PipelineSkeleton() {
+  return (
+    <div className="ov-kpis ov-kpis-pipeline" aria-busy="true" aria-label="Loading">
+      {STAGES.map((stage) => (
+        <div key={stage.key} className="ov-kpi">
+          <span className="skeleton ov-sk-label" />
+          <span className="skeleton ov-sk-value" />
+          <span className="skeleton ov-sk-detail" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function OverviewPage() {
-  const { runs, error, truncated } = useRuns();
-  const inProgress = runs?.filter((r) => !isFinal(r.status)).length ?? 0;
-  const showShipments = runs ? runs.length > 0 : !error;
+  const { shipments, loading, error, refresh } = useShipments();
+  const all = shipments ?? [];
+  const counts = pipelineCounts(all);
+  const failed = all.filter((s) => s.status === "FAILED").length;
+  const attention = attentionShipments(all, 6);
+  const recent = recentShipments(all, 6);
 
   return (
     <div className="page">
       <PageHeader
-        title="Trade Operations"
-        description="Monitor document processing, validation and exceptions."
+        title="Overview"
+        description="Where every supplier email stands, from received to replied."
+        actions={<RefreshButton />}
       />
 
       {error ? (
         <div className="panel">
-          <ErrorState message={`Could not load pipeline runs: ${error}`} onRetry={refreshRuns} />
+          <ErrorState message={`Could not load shipments: ${error}`} onRetry={refresh} />
         </div>
-      ) : !runs ? (
-        <MetricsSkeleton />
-      ) : runs.length === 0 ? (
+      ) : loading ? (
+        <PipelineSkeleton />
+      ) : all.length === 0 ? (
         <GetStarted />
       ) : (
-        <Metrics runs={runs} truncated={truncated} />
-      )}
-
-      <div className="ov-main">
-        <UploadDropzone />
-
-        <section className="panel ov-activity-panel" aria-labelledby="ov-activity-title">
-          <div className="panel-header">
-            <div>
-              <h2 className="panel-title" id="ov-activity-title">
-                Recent activity
-              </h2>
-              <p className="panel-subtitle">Latest pipeline results</p>
+        <>
+          <section className="section" aria-labelledby="ov-pipeline-title">
+            <SectionHeader
+              id="ov-pipeline-title"
+              title="Where shipments are now"
+              subtitle="From a new email to a reply. Select a card to see those shipments."
+            />
+            <div className="ov-kpis ov-kpis-pipeline">
+              {STAGES.map((stage) => (
+                <KpiCard
+                  key={stage.key}
+                  label={stage.label}
+                  value={counts[stage.key]}
+                  icon={stage.icon}
+                  tone={stage.tone}
+                  detail={stage.detail}
+                  to={stage.to}
+                />
+              ))}
             </div>
-            {inProgress > 0 && (
-              <span className="status-dot tone-info">
-                <span className="dot dot-pulse" />
-                {inProgress} processing
-              </span>
+            {failed > 0 && (
+              <div className="callout tone-danger">
+                <Icon name="alert" size={16} />
+                <p>
+                  <strong>
+                    {failed === 1 ? "1 shipment" : `${failed} shipments`} could not be processed.
+                  </strong>{" "}
+                  <Link to="/shipments">Open Shipments</Link>
+                </p>
+              </div>
             )}
-          </div>
-          {runs ? (
-            <ActivityList runs={runs} />
-          ) : error ? (
-            <EmptyState compact icon="alert" title="Activity unavailable">
-              Recent activity appears once pipeline runs can be loaded.
-            </EmptyState>
-          ) : (
-            <LoadingRows rows={5} />
-          )}
-        </section>
-      </div>
+          </section>
 
-      {showShipments && (
-        <section className="section" aria-labelledby="ov-shipments-title">
-          <SectionHeader
-            id="ov-shipments-title"
-            title="Recent shipments"
-            subtitle="Latest documents processed by the pipeline"
-            actions={
-              <Link to="/documents" className="link-button">
-                View all documents
-                <Icon name="arrowRight" size={14} />
-              </Link>
-            }
-          />
-          <div className="panel ov-shipments">
-            {runs ? <ShipmentTable runs={runs.slice(0, 5)} compact /> : <LoadingRows rows={3} />}
+          <div className="ov-main ov-main-even">
+            <section className="panel ov-activity-panel" aria-labelledby="ov-attention-title">
+              <div className="panel-header">
+                <div>
+                  <h2 className="panel-title" id="ov-attention-title">
+                    Needs your attention
+                  </h2>
+                  <p className="panel-subtitle">Longest waiting first</p>
+                </div>
+                <Link to="/exceptions" className="link-button">
+                  Exceptions
+                  <Icon name="arrowRight" size={14} />
+                </Link>
+              </div>
+              {attention.length === 0 ? (
+                <EmptyState compact icon="checkCircle" title="Nothing is waiting for you">
+                  Shipments that need a decision or a reply show up here.
+                </EmptyState>
+              ) : (
+                <ShipmentFeed shipments={attention} from="overview" />
+              )}
+            </section>
+
+            <section className="panel ov-activity-panel" aria-labelledby="ov-recent-title">
+              <div className="panel-header">
+                <div>
+                  <h2 className="panel-title" id="ov-recent-title">
+                    Recent activity
+                  </h2>
+                  <p className="panel-subtitle">Latest changes across all shipments</p>
+                </div>
+                <Link to="/shipments" className="link-button">
+                  Shipments
+                  <Icon name="arrowRight" size={14} />
+                </Link>
+              </div>
+              <ShipmentFeed shipments={recent} from="overview" />
+            </section>
           </div>
-        </section>
+
+          <Results />
+        </>
       )}
     </div>
   );

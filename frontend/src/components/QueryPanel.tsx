@@ -12,11 +12,14 @@ import type {
   ExtractionField,
   QueryExecutionResult,
   QueryResponse,
+  ShipmentSummary,
   ValidationStatus,
   EvidenceStatus,
 } from "../types/api.js";
 import { api, ApiError } from "../api.js";
 import { useRuns } from "../data.js";
+import { useShipments } from "../shipmentData.js";
+import { SHIPMENT_STATUS } from "../shipmentDomain.js";
 import {
   DECISIONS,
   EVIDENCE,
@@ -33,7 +36,13 @@ import {
 import { Link } from "../router.js";
 import { EmptyState } from "./EmptyState.js";
 import { Icon, type IconName } from "./Icon.js";
-import { DecisionBadge, EvidenceBadge, RunStatusBadge, ValidationBadge } from "./StatusBadge.js";
+import {
+  DecisionBadge,
+  EvidenceBadge,
+  RunStatusBadge,
+  ShipmentStatusBadge,
+  ValidationBadge,
+} from "./StatusBadge.js";
 
 const MAX_LENGTH = 500;
 const MAX_ROWS = 200;
@@ -44,6 +53,9 @@ const SUGGESTIONS = [
   "Recent amendment requests",
   "Documents approved today",
   "Which customers have the most exceptions?",
+  "Show me everything pending review for Bata India",
+  "How many shipments are waiting for the supplier?",
+  "Which shipments had an HS code problem this week?",
 ];
 
 const TOPICS: { icon: IconName; title: string; text: string }[] = [
@@ -99,7 +111,11 @@ type Outcome =
 
 type HistoryEntry = { question: string; ok: boolean; summary: string; at: number };
 
-type RunLinks = { byId: Map<string, RunRecord>; byFilename: Map<string, RunRecord> };
+type RunLinks = {
+  byId: Map<string, RunRecord>;
+  byFilename: Map<string, RunRecord>;
+  shipmentByReference: Map<string, string>;
+};
 
 type FailureInfo = {
   tone: Tone;
@@ -201,7 +217,7 @@ function flowStates(pending: boolean, outcome: Outcome | null): StepState[] {
   return FLOW.map((_, i) => (i < at ? "done" : i === at ? "failed" : "idle"));
 }
 
-function indexRuns(runs: RunRecord[] | null): RunLinks {
+function indexRuns(runs: RunRecord[] | null, shipments: ShipmentSummary[] | null): RunLinks {
   const byId = new Map<string, RunRecord>();
   const byFilename = new Map<string, RunRecord>();
   for (const run of runs ?? []) {
@@ -209,10 +225,13 @@ function indexRuns(runs: RunRecord[] | null): RunLinks {
     const seen = byFilename.get(run.filename);
     if (!seen || run.createdAt > seen.createdAt) byFilename.set(run.filename, run);
   }
-  return { byId, byFilename };
+  const shipmentByReference = new Map((shipments ?? []).map((s) => [s.reference, s.id]));
+  return { byId, byFilename, shipmentByReference };
 }
 
 const RUN_ID = /^run_[\w-]+$/;
+const SHIPMENT_ID = /^shp_[\w-]+$/;
+const SHIPMENT_REFERENCE = /^SHP-\d+$/;
 const TIMESTAMP = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
 const ACRONYMS = new Set(["id", "hs", "sql", "pol", "pod"]);
 const AGGREGATES: Record<string, string> = {
@@ -300,6 +319,14 @@ function renderCell(
       </Link>
     );
   }
+  const shipmentId = SHIPMENT_ID.test(value) ? value : links.shipmentByReference.get(value);
+  if (shipmentId && (SHIPMENT_ID.test(value) || SHIPMENT_REFERENCE.test(value))) {
+    return (
+      <Link to={`/shipments/${encodeURIComponent(shipmentId)}`} className="q-link mono">
+        {value.length > 14 ? `${value.slice(0, 12)}…` : value}
+      </Link>
+    );
+  }
   const target = fileTarget(value, column, rowRun, links);
   if (target) {
     return (
@@ -311,6 +338,8 @@ function renderCell(
   }
   if (Object.hasOwn(DECISIONS, value)) return <DecisionBadge decision={value} size="sm" />;
   if (/status/i.test(column)) {
+    if (Object.hasOwn(SHIPMENT_STATUS, value))
+      return <ShipmentStatusBadge status={value} size="sm" />;
     if (Object.hasOwn(RUN_STATUS, value)) return <RunStatusBadge status={value} />;
     if (Object.hasOwn(VALIDATION, value)) {
       return <ValidationBadge status={value as ValidationStatus} />;
@@ -670,7 +699,8 @@ function QueryHistory({
 
 export function QueryPanel() {
   const { runs } = useRuns();
-  const links = useMemo(() => indexRuns(runs), [runs]);
+  const { shipments } = useShipments();
+  const links = useMemo(() => indexRuns(runs, shipments), [runs, shipments]);
   const [question, setQuestion] = useState("");
   const [pending, setPending] = useState<{ question: string; startedAt: number } | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);

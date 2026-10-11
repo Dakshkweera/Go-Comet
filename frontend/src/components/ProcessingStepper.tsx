@@ -4,7 +4,8 @@ import { isFinal, stageIndex } from "../domain.js";
 import { Icon } from "./Icon.js";
 
 export type StepperPhase = "ready" | "uploading" | "processing";
-type StepState = "done" | "active" | "pending" | "failed";
+export type StepState = "done" | "active" | "pending" | "failed";
+export type StepItem = { label: string; state: StepState; detail: string | null };
 
 const LABELS = [
   "Document received",
@@ -51,22 +52,7 @@ function stepStates(phase: StepperPhase, run: RunView | null): StepState[] {
   return ["done", "pending", "pending", "pending", "pending"];
 }
 
-export function ProcessingStepper({ phase, run }: { phase: StepperPhase; run: RunView | null }) {
-  const states = stepStates(phase, run);
-  const attempt = run?.attempts.filter((a) => a.stage === "EXTRACTING").length ?? 0;
-  const details: (string | null)[] = [
-    phase === "uploading" ? "Uploading" : null,
-    states[1] === "active" && attempt > 1
-      ? `Attempt ${attempt}`
-      : run?.status === "RECEIVED"
-        ? "Queued"
-        : null,
-  ];
-  const steps = LABELS.map((label, i) => ({
-    label,
-    state: states[i] ?? "pending",
-    detail: details[i] ?? null,
-  }));
+export function StepList({ steps }: { steps: StepItem[] }) {
   const active = steps.find((step) => step.state === "active");
 
   return (
@@ -93,5 +79,27 @@ export function ProcessingStepper({ phase, run }: { phase: StepperPhase; run: Ru
         {active ? [active.label, active.detail].filter(Boolean).join(", ") : ""}
       </p>
     </>
+  );
+}
+
+export function ProcessingStepper({ phase, run }: { phase: StepperPhase; run: RunView | null }) {
+  const states = stepStates(phase, run);
+  const attempt = run?.attempts.filter((a) => a.stage === "EXTRACTING").length ?? 0;
+  const details: (string | null)[] = [
+    phase === "uploading" ? "Uploading" : null,
+    states[1] === "active" && attempt > 1
+      ? `Attempt ${attempt}`
+      : run?.status === "RECEIVED"
+        ? "Queued"
+        : null,
+  ];
+  return (
+    <StepList
+      steps={LABELS.map((label, i) => ({
+        label,
+        state: states[i] ?? "pending",
+        detail: details[i] ?? null,
+      }))}
+    />
   );
 }

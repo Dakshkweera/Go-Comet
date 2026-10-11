@@ -4,14 +4,25 @@ import { EmptyState } from "./components/EmptyState.js";
 import { CustomersPage } from "./pages/Customers.js";
 import { DocumentDetailPage } from "./pages/DocumentDetail.js";
 import { DocumentsPage } from "./pages/Documents.js";
+import { InboxPage } from "./pages/Inbox.js";
 import { ExceptionsPage } from "./pages/Exceptions.js";
 import { OverviewPage } from "./pages/Overview.js";
+import { ProcessingPage } from "./pages/Processing.js";
 import { QueriesPage } from "./pages/Queries.js";
 import { RulesPage } from "./pages/Rules.js";
+import { SentEmailsPage } from "./pages/SentEmails.js";
+import { ShipmentDetailPage } from "./pages/ShipmentDetail.js";
+import { ShipmentsPage } from "./pages/Shipments.js";
+import { SimulatePage } from "./pages/Simulate.js";
 import { Link, matchPath, navigate, usePath } from "./router.js";
 
 const TITLES: Record<string, string> = {
   "/": "Overview",
+  "/inbox": "Inbox",
+  "/processing": "Processing",
+  "/shipments": "Shipments",
+  "/sent-emails": "Sent emails",
+  "/simulate": "Simulate email",
   "/documents": "Documents",
   "/exceptions": "Exceptions",
   "/queries": "Queries",
@@ -23,6 +34,16 @@ function Page({ path }: { path: string }) {
   switch (path) {
     case "/":
       return <OverviewPage />;
+    case "/inbox":
+      return <InboxPage />;
+    case "/processing":
+      return <ProcessingPage />;
+    case "/shipments":
+      return <ShipmentsPage />;
+    case "/sent-emails":
+      return <SentEmailsPage />;
+    case "/simulate":
+      return <SimulatePage />;
     case "/documents":
       return <DocumentsPage />;
     case "/exceptions":
@@ -34,6 +55,8 @@ function Page({ path }: { path: string }) {
     case "/rules":
       return <RulesPage />;
   }
+  const shipment = matchPath("/shipments/:id", path);
+  if (shipment) return <ShipmentDetailPage key={shipment.id} id={shipment.id!} />;
   const detail = matchPath("/documents/:id", path);
   if (detail) return <DocumentDetailPage key={detail.id} id={detail.id!} />;
   return (
@@ -64,7 +87,7 @@ export function App() {
   }, [path]);
 
   useEffect(() => {
-    if (matchPath("/documents/:id", path)) return;
+    if (matchPath("/documents/:id", path) || matchPath("/shipments/:id", path)) return;
     document.title = TITLES[path] ? `${TITLES[path]} · Nova` : "Nova";
   }, [path]);
 

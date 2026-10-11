@@ -1,11 +1,13 @@
 import { useMemo } from "react";
+import { DocumentMetrics } from "../components/DocumentMetrics.js";
 import { EmptyState, ErrorState, LoadingRows } from "../components/EmptyState.js";
 import { Icon } from "../components/Icon.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { ShipmentTable } from "../components/ShipmentTable.js";
+import { UploadDropzone } from "../components/UploadDropzone.js";
 import { refreshRuns, RUN_LIST_LIMIT, useRuns } from "../data.js";
 import { DECISIONS, isFinal, plural, type RunRecord } from "../domain.js";
-import { Link, setSearchParams, useSearchParams } from "../router.js";
+import { setSearchParams, useSearchParams } from "../router.js";
 import "../styles/documents.css";
 
 type Option = { value: string; label: string };
@@ -128,14 +130,14 @@ export function DocumentsPage() {
     <div className="page">
       <PageHeader
         title="Documents"
-        description="Review processed trade documents and pipeline decisions."
-        actions={
-          <Link to="/" className="btn btn-primary">
-            <Icon name="upload" size={15} />
-            Upload document
-          </Link>
-        }
+        description="Check a single trade document on its own, outside the email workflow. Documents that arrive by email are part of their shipment."
       />
+
+      <div className="docs-upload">
+        <UploadDropzone />
+      </div>
+
+      {runs && runs.length > 0 && <DocumentMetrics runs={runs} truncated={truncated} />}
 
       {error ? (
         <div className="panel">
@@ -143,17 +145,8 @@ export function DocumentsPage() {
         </div>
       ) : runs?.length === 0 ? (
         <div className="panel">
-          <EmptyState
-            icon="documents"
-            title="No documents processed yet."
-            action={
-              <Link to="/" className="btn btn-primary btn-sm">
-                <Icon name="upload" size={14} />
-                Upload document
-              </Link>
-            }
-          >
-            Upload a trade document to start your first pipeline run.
+          <EmptyState icon="documents" title="No documents checked yet.">
+            Upload a trade document above to start a pipeline run.
           </EmptyState>
         </div>
       ) : (
