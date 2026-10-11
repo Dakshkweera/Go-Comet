@@ -10,7 +10,7 @@
 ![Express](https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-Drizzle-003B57?logo=sqlite&logoColor=white)
 ![Gemini](https://img.shields.io/badge/Gemini_2.5-via_OpenRouter-4285F4?logo=googlegemini&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-196_passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-286_passing-2ea44f)
 
 [How it works](#-how-it-works) · [Architecture](#-system-architecture) · [Safety](#-safety-by-design) · [The product](#-the-product) · [Run it](#-install-and-run) · [Demo](#-demo-walkthrough)
 
@@ -53,6 +53,15 @@ Every Part 1 behaviour from the assignment, running end to end on real documents
 - **D · Storage + Query:** a SQLite run history, and natural-language questions turned into guarded read-only SQL and a grounded answer.
 - **E · Minimal UI:** a live pipeline stepper, extracted fields with confidence, validation results, the decision and reasoning, and a viewer for the original document.
 - **Also:** customer resolution, crash-resumable runs, duplicate detection, run deletion, and the confidence threshold recorded on every run.
+
+Part 2 wires the same agents into the CG workflow, with the CG screens on top (design in [docs/PART2_DESIGN.md](docs/PART2_DESIGN.md), one-page [PRD](submission/PART2_PRD.pdf)):
+
+- **Trigger:** a watcher picks up supplier emails (`.eml`) dropped into an inbox folder; one email thread is one shipment, every attachment is read on its own.
+- **Content-based classification:** invoice, bill of lading, packing list, certificate of origin or `OTHER`, from the PDF title and the model's view of the whole page, never the filename.
+- **Two-stage check:** intake first (files readable, required documents present, values readable, customer known), then validation: the owner document is checked against the rule first, other documents must match a correct owner, and every document is checked against the customer rules and against each other.
+- **CG in control:** review and amendment items on one screen, *clarify* or *amend* per item, an editable reply draft grouped by document, and a Send that the server blocks until review is done. Sending is simulated, and nothing is ever sent without the CG's click.
+- **Cycles and idempotency:** a supplier reply in the thread is the next cycle; the same email or file never creates duplicates, and an unchanged resent file reuses its extraction.
+- **Hand-off:** shipment results are queryable ("show me everything pending review for Bata India"), with a per-shipment audit timeline and a north-star metric endpoint.
 
 ---
 
@@ -277,10 +286,14 @@ A trade-operations workspace with a persistent sidebar. Each concern has its own
 
 | Page | What it's for |
 |---|---|
-| **Overview** | KPIs (processed, auto-approved, human review, amendments), a drag-and-drop upload with a live processing stepper, recent activity, and recent shipments. |
-| **Documents** | Every processed run, with search and filters for status, decision, customer and date. Filters are kept in the URL. |
+| **Overview** | Where every supplier email stands: counts at each step (processing, needs review, amendment ready, ready to approve, waiting for supplier, done), what needs the CG's attention, recent activity and reply metrics. |
+| **Inbox** | The supplier emails received, one row per email (new shipment or reply); open one to read it and see its attachments. No results here. |
+| **Processing** | The emails being read right now, with the step each is on and the status of every file, updating live. Just-finished emails show where they ended up. |
+| **Exceptions** | Shipments that need a person: *Needs review* (a value to confirm) and *Amendment ready* (a reply to the supplier is drafted). A second tab holds the standalone-document exceptions. |
+| **Shipments** | Every shipment with status filters and search. Open one to verify, review and send the reply; shipments can be deleted so a sample can be received again. |
+| **Sent emails · Simulate email** | The simulated replies sent to suppliers; and a page that plays the supplier by delivering sample or uploaded `.eml` emails. |
+| **Documents** | Check a single trade document on its own: drag-and-drop upload with a live stepper, every processed run, and search and filters for status, decision, customer and date. Filters are kept in the URL. |
 | **Document detail** | The investigation view: a pipeline stepper, a decision summary that says *why*, extraction cards (value, confidence signal, evidence status, source snippet), customer rule validation (found vs expected), decision reasoning, the amendment draft with a copy button, and **View original document**, a side drawer that shows the source PDF or image next to the findings. Runs can be deleted to reset a demo. |
-| **Exceptions** | The human-in-the-loop queue: human reviews and amendment requests, each with its issue chips (e.g. *HS Code · ambiguous source evidence*, *Port of Discharge: Chennai → Mumbai*). |
 | **Queries** | Ask about processed shipments in plain English. Answer and results table first, generated SQL collapsed underneath. Results link back to their documents. |
 | **Customers · Rules** | A read-only view derived from processed runs: resolved customers, their active rules, and how each rule has performed (match / mismatch / uncertain). |
 
@@ -293,13 +306,13 @@ The UI works from desktop down to phone width. Tables scroll inside their contai
 | Layer | Technology |
 |---|---|
 | Frontend | React 19, Vite 7, TypeScript. A small History-API router, native `<dialog>`, hand-written design system (no UI kit) |
-| Backend | Node.js 22, Express 5, TypeScript, layered as routes → controllers → services (`multer`, `cors`, `pino-http`) |
+| Backend | Node.js 22, Express 5, TypeScript, layered as routes → controllers → services (`multer`, `cors`, `pino-http`; `mailparser` for supplier emails) |
 | Database | SQLite via `better-sqlite3` and Drizzle ORM, with versioned migrations |
 | Contracts | Zod schemas for every hand-off between stages in the backend; the frontend keeps its own typed copy of the API responses |
 | Extraction | Gemini 2.5 Pro (vision) through OpenRouter; `unpdf` for the PDF text cross-check |
 | Query layer | Gemini 2.5 Flash for classification, SQL generation and answers |
 | LLM client | A dependency-free, OpenAI-compatible JSON client with timeouts and retry classification |
-| Quality | Vitest (196 tests), strict TypeScript, ESLint, Prettier |
+| Quality | Vitest (286 tests), strict TypeScript, ESLint, Prettier |
 
 ---
 
@@ -336,7 +349,7 @@ LLM_API_KEY=<your OpenRouter key>
 The model IDs come preset: Gemini 2.5 Pro for extraction, Gemini 2.5 Flash for queries.
 
 > [!TIP]
-> **No key? Use fake mode.** With `LLM_PROVIDER=fake` the whole app runs offline: every upload returns the same clean extraction, and the query page explains that a key is needed.
+> **No key? Use fake mode.** With `LLM_PROVIDER=fake` the whole app runs offline: every upload returns the same clean extraction, and the query page explains that a key is needed. For supplier emails, document types then come from the PDF titles alone, and every attachment carries the same clean values.
 
 ### 2. Development
 
@@ -411,10 +424,10 @@ Three sample invoices live in `samples/` (regenerate them with `npm run samples`
 
 **Try it:**
 
-1. Open the app, drop a sample onto **Upload trade document**, and click **Process document**.
+1. Open **Documents**, drop a sample onto **Upload trade document**, and click **Process document**.
 2. Watch the live stepper. When processing finishes, the run's detail page opens automatically.
 3. Read the decision summary, then open **View original document** to compare the source with the extracted fields.
-4. Open **Exceptions** to see the human-in-the-loop queue.
+4. Open **Exceptions → Standalone documents** to see the human-in-the-loop queue.
 5. Ask a question on **Queries**.
 
 **Sample queries** run against the three demo runs (each answer also shows its results table and the generated SQL):
@@ -429,6 +442,32 @@ Three sample invoices live in `samples/` (regenerate them with `npm run samples`
 | How many shipments were flagged for human review or amendment? | 2 |
 | What does FOB mean? | Answered as a general question, with no database access |
 
+### Part 2: supplier emails
+
+Six sample SU emails live in `samples/emails/` (each `.eml` with its PDFs in a folder of the same name; regenerate them with `npm run samples:emails` in `backend/`). All of them were run on live Gemini 2.5 Pro:
+
+| Sample | What's inside | Result |
+|---|---|---|
+| `01-clean` | Invoice, bill of lading, packing list, fumigation certificate | ✅ **Ready to approve.** The certificate is tagged `OTHER` and causes no review |
+| `02-intake` → `02-intake-reply` | A damaged `scan_01.pdf`; the reply resends the packing list | 📨 **Intake request first** ("please resend scan_01.pdf"), then cycle 2 validates the full set and is ready to approve |
+| `03-validation` → `03-validation-reply` | Packing list HS code 6403.22; bill of lading 950 kg vs packing list 900 kg | ⛔ **Two corrections**, grouped by document. The corrected reply (invoice resent unchanged, so its extraction is reused) is ready to approve |
+| `04-review` | Packing list scanned with a smudged HS code | ⚠️ **Needs your review.** Gemini read `6403 79`; the quality gate flagged it as ambiguous. CG clarifies 6403.99 and validation runs |
+
+Three more emails in `samples/demo-emails/` are made for uploading by hand in a demo (**Simulate email → Upload .eml**), one per outcome: `demo-auto-approved.eml` (ready to approve), `demo-human-review.eml` (needs review, blurry packing list) and `demo-amendment-request.eml` (amendment ready, weights and HS code disagree). Each carries its three PDFs. Rebuild them with `npm run samples:demo` in `backend/`.
+
+In the app, open **Simulate email**, press **Deliver** on a sample, and follow it through **Inbox** (the mail arrives), **Processing** (it is read, step by step), then **Exceptions** or **Shipments** (where it lands). Each sample is accepted once; delete a shipment to receive its email again. Or from the command line, with the backend running:
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/inbox/samples/03-validation/deliver
+curl http://127.0.0.1:3000/api/shipments
+```
+
+| Question (live) | Answer |
+|---|---|
+| Show me everything pending review for Bata India | SHP-0001, SHP-0002 and SHP-0004, all ready to approve |
+| How many shipments are waiting for the supplier? | 0 (both amendments had been answered) |
+| Which shipments had an HS code problem? | SHP-0004, named by reference. Findings from every cycle are kept, so a shipment whose HS code was later corrected counts too |
+
 ---
 
 ## ⌂ Live Demo
@@ -437,7 +476,8 @@ Three sample invoices live in `samples/` (regenerate them with `npm run samples`
 |---|---|
 | **Live application** | _add the deployed URL_ |
 | **Repository** | https://github.com/Dakshkweera/Go-Comet |
-| **Demo video** | https://www.youtube.com/watch?v=8P0aBQEIgec |
+| **Demo video (Part 1)** | https://www.youtube.com/watch?v=8P0aBQEIgec |
+| **Demo video (Part 2)** | _add the link after recording; script in [submission/PART2_DEMO_SCRIPT.md](submission/PART2_DEMO_SCRIPT.md)_ |
 
 ---
 
@@ -452,6 +492,17 @@ Three sample invoices live in `samples/` (regenerate them with `npm run samples`
 | `DELETE` | `/api/runs/:id` | Delete a run and its data (`409` while it is still processing) |
 | `POST` | `/api/query` | `{ question }` → `{ type, answer, data, sql }` |
 | `GET` | `/api/health` | `{ status, db }` |
+| `GET` | `/api/inbox/samples` | Sample SU emails available to deliver |
+| `POST` | `/api/inbox/samples/:name/deliver` | Drop a sample into the watched inbox (`202 { file }`) |
+| `POST` | `/api/inbox/emails` | Ingest an uploaded `.eml` (multipart `file`) → `202 { shipmentId, emailId, cycle, duplicate }` |
+| `GET` | `/api/shipments` · `/api/shipments/:id` | Shipment list; full view with documents, field grid, issues, draft, timeline |
+| `DELETE` | `/api/shipments/:id` | Remove a shipment with its emails, attachments and replies so the same email can be received again; `409` while it is processing |
+| `POST` | `/api/shipments/:id/review` | `{ issueKey, action: clarify \| amend, value?, note? }` |
+| `PUT` | `/api/shipments/:id/documents/:documentId/type` | CG sets a document's type |
+| `PUT` · `POST` | `/api/shipments/:id/draft` · `/draft/send` | Save edits; send (simulated) the current version |
+| `GET` | `/api/sent-emails` · `/api/metrics` | Simulated sent replies; north-star and supporting metrics |
+
+The Part 2 payloads are specified in [PART2_DESIGN.md §11](docs/PART2_DESIGN.md#11-api-contract-for-the-frontend-agent).
 
 Errors always have the same shape: `{ "error": { "code": "RUN_NOT_FOUND", "message": "Run not found." } }`.
 
@@ -473,6 +524,12 @@ Errors always have the same shape: `{ "error": { "code": "RUN_NOT_FOUND", "messa
 | `MAX_UPLOAD_MB` | `15` | Upload size limit |
 | `LLM_MAX_ATTEMPTS` | `3` | Total extraction attempts, the first try included |
 | `LLM_TIMEOUT_MS` | `60000` | Per model call |
+| `EXTRACTION_CONCURRENCY` | `2` | Parallel model calls across all shipments |
+| `INBOX_DIR` / `INBOX_POLL_MS` | `./data/inbox` / `2000` | Watched folder for `.eml` files (`0` turns the watcher off) |
+| `EMAIL_DIR` | `./data/emails` | Stored raw emails (audit evidence) |
+| `SAMPLE_EMAILS_DIR` | `../samples/emails` | Samples offered by `/api/inbox/samples` |
+| `MAX_ATTACHMENTS` / `MAX_EMAIL_MB` | `10` / `25` | Per-email limits |
+| `CG_MAILBOX` / `CG_SIGNATURE` | `cg@nova.local` / `CG Team` | Reply sender and signature |
 | `LOG_LEVEL` | `info` | API log level |
 
 </details>
@@ -482,12 +539,12 @@ Errors always have the same shape: `{ "error": { "code": "RUN_NOT_FOUND", "messa
 ## ✓ Testing
 
 ```bash
-cd backend  && npm test      # 176 tests across 12 files
+cd backend  && npm test      # 266 tests across 19 files
 cd frontend && npm test      # 20 tests across 2 files
 npm run typecheck            # in each folder; also npm run lint
 ```
 
-The suite covers the contracts; the database schema and migrations; the extractor, normalizer and quality gate (including fixtures of real Gemini output); every reliability rule and validator operator; the complete router decision table; the pipeline's persistence, retries, resume-after-crash and deletion; the SQL guard against injection and write attempts; the API end to end; and the UI's domain logic.
+The suite covers the contracts; the database schema and migrations; the extractor, normalizer and quality gate (including fixtures of real Gemini output); every reliability rule and validator operator; the complete router decision table; the pipeline's persistence, retries, resume-after-crash and deletion; the SQL guard against injection and write attempts; the API end to end; and the UI's domain logic. For Part 2: email parsing, idempotency and threading; classification; every intake and validation rule; review actions and the send gate; and all six sample emails run end to end.
 
 ---
 
@@ -517,16 +574,18 @@ Go-Comet/
 │   │   ├── app.ts               # Express app: CORS, logging, routes, error handling
 │   │   ├── container.ts         # Wires the database, LLM client, agents and pipeline
 │   │   ├── config/              # Environment validation
-│   │   ├── routes/              # URL → controller (runs, query, health)
+│   │   ├── routes/              # URL → controller (runs, query, health, inbox, shipments, sent emails, metrics)
 │   │   ├── controllers/         # HTTP only: read the request, call a service, shape the response
 │   │   ├── middlewares/         # Upload handling, error handling
 │   │   ├── services/            # Business logic
 │   │   │   ├── run.service.ts          # Create, list, read and delete runs
 │   │   │   ├── pipeline.service.ts     # Orchestrator: stages, retries, resume
 │   │   │   ├── customer.service.ts     # Customer resolution and rule loading
-│   │   │   ├── extraction/             # Extractor agent, prompt, normalizer, quality gate
-│   │   │   ├── validation/             # Field reliability checks, rule evaluation
-│   │   │   ├── routing/                # Decision router, amendment draft
+│   │   │   ├── extraction/             # Extractor agent, prompt, normalizer, quality gate, classifier
+│   │   │   ├── validation/             # Field reliability, rules, intake and cross-document checks
+│   │   │   ├── routing/                # Decision routers, amendment and reply drafts
+│   │   │   ├── inbox/                  # .eml parsing, idempotent ingestion, inbox watcher
+│   │   │   ├── shipment/               # Shipment orchestration, review, send, views
 │   │   │   ├── query/                  # NL → SQL, SQL guard, answer generation
 │   │   │   └── llm/                    # OpenAI-compatible JSON client
 │   │   ├── db/                  # Drizzle schema, client, seed
@@ -537,7 +596,8 @@ Go-Comet/
 │   └── scripts/                 # Sample generator
 ├── frontend/                    # React UI, deployed on Vercel
 │   ├── src/
-│   │   ├── pages/               # Overview, Documents, DocumentDetail, Exceptions, Queries, Customers, Rules
+│   │   ├── pages/               # Overview, Inbox, Processing, Exceptions, Shipments, ShipmentDetail, SentEmails,
+│   │   │                        # Simulate, Documents, DocumentDetail, Queries, Customers, Rules
 │   │   ├── components/          # App shell, pipeline stepper, decision summary, extraction grid,
 │   │   │                        # validation list, document drawer, upload dropzone, dialogs…
 │   │   ├── types/api.ts         # Typed API responses
@@ -547,7 +607,7 @@ Go-Comet/
 │   │   ├── data.ts              # Shared run store with polling
 │   │   └── router.tsx           # Minimal History-API router
 │   └── vercel.json              # SPA rewrites
-├── samples/                     # clean, mismatch and messy invoices
+├── samples/                     # clean, mismatch and messy invoices; emails/ holds the Part 2 SU emails
 ├── docs/                        # PRD, architecture, contracts, data model, decisions
 └── submission/                  # PRD and technical write-up (Markdown + PDF)
 ```
@@ -561,7 +621,7 @@ Go-Comet/
 - **No OCR fallback.** PDFs go to the vision model as they are. Image-only documents can't be cross-checked against a text layer, so their fields are marked *unverified*.
 - **A deliberately strict SQL guard.** It may reject some valid but unusual queries rather than risk an unsafe one.
 - **Missing values can carry a high confidence.** The model sometimes reports 1.0 for a value it left empty. The router treats any missing value as unreliable regardless, so the run still goes to human review, but the raw number is not meaningful there.
-- **Scope.** This is Part 1 of the assignment. Deeper design notes are listed below.
+- **Part 2 mail is simulated.** The screens follow [docs/PART2_FRONTEND_BRIEF.md](docs/PART2_FRONTEND_BRIEF.md), with the pages grouped by step (Inbox, Processing, Exceptions, Shipments); the inbox is a watched folder, not a real mailbox, and sending is simulated. Port aliases (Nhava Sheva vs Mumbai) and combined "invoice cum packing list" documents are not handled yet ([full list](docs/PART2_DESIGN.md#19-known-limitations)).
 
 ---
 
@@ -579,8 +639,12 @@ Go-Comet/
 | [Evaluation plan](docs/Evaluation_plan.md) | How the system is evaluated |
 | [Implementation plan](docs/Implementation_plan.md) | Phase plan |
 | [Decisions](docs/DECISIONS.md) | Decision log and implementation decisions |
+| [Part 2 PRD](submission/PART2_PRD.pdf) · [Markdown](submission/PART2_PRD.md) | One page: personas, jobs to be done, north-star metric, failure mode |
+| [Part 2 demo script](submission/PART2_DEMO_SCRIPT.md) | The 2-minute video script and the Part 2 submission checklist |
+| [Part 2 design](docs/PART2_DESIGN.md) | Inbox, shipments, two-stage checks, review, send gate, API contract |
+| [Part 2 frontend brief](docs/PART2_FRONTEND_BRIEF.md) | The CG screens to build against the API |
 
 <div align="center">
 <br/>
-<sub>Built for the GoComet Full-Stack AI Engineer assignment · Part 1</sub>
+<sub>Built for the GoComet Full-Stack AI Engineer assignment · Parts 1 and 2</sub>
 </div>
