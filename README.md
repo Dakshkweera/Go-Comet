@@ -10,7 +10,7 @@
 ![Express](https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-Drizzle-003B57?logo=sqlite&logoColor=white)
 ![Gemini](https://img.shields.io/badge/Gemini_2.5-via_OpenRouter-4285F4?logo=googlegemini&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-375_passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-376_passing-2ea44f)
 
 **[Live app](https://go-comet-ashen.vercel.app)** · [Demo video (Part 2)](https://www.youtube.com/watch?v=SzGOhgzxHNo) · [How it works](#-how-it-works) · [Architecture](#-system-architecture) · [Safety](#-safety-by-design) · [The product](#-the-product) · [Run it](#-install-and-run) · [Demo](#-demo-walkthrough)
 
@@ -411,7 +411,7 @@ The UI works from desktop down to phone width. Tables scroll inside their contai
 | Extraction | Gemini 2.5 Pro (vision) through OpenRouter; `unpdf` for the PDF text cross-check |
 | Query layer | Gemini 2.5 Flash for classification, SQL generation and answers |
 | LLM client | A dependency-free, OpenAI-compatible JSON client with timeouts and retry classification |
-| Quality | Vitest (375 tests), strict TypeScript, ESLint, Prettier |
+| Quality | Vitest (376 tests), strict TypeScript, ESLint, Prettier |
 
 ---
 
@@ -644,7 +644,7 @@ Errors always have the same shape: `{ "error": { "code": "RUN_NOT_FOUND", "messa
 ## ✓ Testing
 
 ```bash
-cd backend  && npm test      # 270 tests across 19 files
+cd backend  && npm test      # 271 tests across 19 files
 cd frontend && npm test      # 105 tests across 3 files
 npm run typecheck            # in each folder; also npm run lint
 ```

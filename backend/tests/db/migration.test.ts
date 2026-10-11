@@ -60,6 +60,7 @@ describe("Part 2 migrations", () => {
       .map((c) => (c as { name: string }).name);
     expect(columns).toEqual([
       "direction",
+      "kind",
       "shipment_id",
       "cycle",
       "from_address",

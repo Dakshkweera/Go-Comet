@@ -545,18 +545,26 @@ New error codes:
 - `ALLOWED_TABLES` += `shipments`, `shipment_fields`, `shipment_issues`, `review_actions`,
   `shipment_events`, `email_log`. Raw `inbound_emails` and `outbound_emails` stay excluded:
   their bodies are untrusted, long text.
-- `SCHEMA_DESCRIPTION` gets the new tables and a glossary:
-  - "shipment" = a `shipments` row.
-  - "pending review" / "waiting for CG" = status in
-    (`NEEDS_REVIEW`, `AMENDMENT_READY`, `APPROVAL_READY`).
-  - "flagged" / "needs human review" = `NEEDS_REVIEW`.
-  - "waiting for supplier" = `AMENDMENT_SENT`.
-  - A customer is matched via `customers.name`.
-  - Shipments are named by `reference`, never by id.
-  - "Had a problem" includes earlier cycles in `shipment_issues`; current findings have
-    `shipment_issues.cycle = shipments.cycle`.
+- `SCHEMA_DESCRIPTION` describes the supplier-email tables first (what every status means,
+  issue kinds and severities), then single uploads, plus a glossary of CG words:
+  - "awaiting review" / "pending review" / "waiting for CG" = status in
+    (`NEEDS_REVIEW`, `AMENDMENT_READY`, `APPROVAL_READY`): nothing is sent unreviewed.
+  - "exceptions" / "needs attention" = `NEEDS_REVIEW`, `AMENDMENT_READY` (the Exceptions page).
+  - "approved" = `APPROVAL_READY`, `APPROVAL_SENT`; "amendment requests" = `AMENDMENT_READY`,
+    `AMENDMENT_SENT`; "waiting for supplier" = `AMENDMENT_SENT`.
+  - "flagged" / "had a problem" = at least one `shipment_issues` row, any cycle.
+  - "mismatches" (found vs expected) = issue kinds `rule_mismatch`, `document_mismatch`,
+    `inconsistent`.
+  - Shipments are named by `reference` and customers by `customers.name`, never by id.
+- `email_log` carries the reply `kind` (approval / amendment, migration 0006), so "amendments
+  sent" can be answered without email bodies.
+- The SQL prompt forbids `SELECT *`, and results never include internal columns
+  (`storage_path`, `raw_path`, `content_hash`, `evaluation_hash`).
+- The answer prompt describes rows only as their columns show, so a list of documents is never
+  called "approved" unless a status column says so.
 - The SQL guard, read-only execution and row cap are unchanged.
-- Test: "show me everything pending review for Bata India" returns grounded `SHP-…` rows.
+- Checked against the real query model on four shipments (approval sent, amendment ready,
+  amendment sent, needs review) with the Queries page suggestions.
 
 ---
 

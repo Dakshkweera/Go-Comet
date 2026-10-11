@@ -133,6 +133,14 @@ describe("query service", () => {
     expect((await service.answer("List runs")).answer).toBe("The query returned 1 row(s).");
   });
 
+  it("never returns server paths or hashes, even for SELECT *", () => {
+    const result = executeReadOnly(db, "SELECT * FROM documents");
+    expect(result.columns).toContain("original_filename");
+    expect(result.columns).not.toContain("storage_path");
+    expect(result.columns).not.toContain("content_hash");
+    expect(result.rows[0]).not.toHaveProperty("storage_path");
+  });
+
   it("answers 'pending review for customer X' from shipment rows", async () => {
     db.insert(shipments)
       .values([
