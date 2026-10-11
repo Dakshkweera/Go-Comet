@@ -1,29 +1,9 @@
 import { and, eq } from "drizzle-orm";
 import type { CustomerResolution, CustomerRule } from "../schemas/index.js";
 import { customerRules, customers, type NovaDb } from "../db/index.js";
+import { normalizeCustomerName } from "./validation/index.js";
 
-const LEGAL_SUFFIXES = new Set([
-  "pvt",
-  "private",
-  "ltd",
-  "limited",
-  "inc",
-  "llc",
-  "co",
-  "company",
-  "corp",
-  "corporation",
-]);
-
-export function normalizeCustomerName(name: string): string {
-  return name
-    .split(/[,\n]/)[0]!
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .split(" ")
-    .filter((word) => word && !LEGAL_SUFFIXES.has(word))
-    .join(" ");
-}
+export { normalizeCustomerName };
 
 export function resolveCustomer(db: NovaDb, consigneeName: string | null): CustomerResolution {
   const notFound = (reason: string): CustomerResolution => ({

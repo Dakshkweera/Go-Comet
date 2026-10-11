@@ -11,6 +11,14 @@
   gap: var(--space-4);
 }
 
+.ov-kpis-pipeline {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ov-kpis-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .ov-kpi {
   display: flex;
   flex-direction: column;
@@ -186,6 +194,10 @@ a.ov-kpi:hover .ov-kpi-arrow {
   display: grid;
   grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
   gap: var(--space-4);
+}
+
+.ov-main-even {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .ov-upload,
@@ -599,16 +611,23 @@ a.ov-kpi:hover .ov-kpi-arrow {
   .ov-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .ov-kpis-pipeline {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 960px) {
-  .ov-main {
+  .ov-main,
+  .ov-main-even {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
 @media (max-width: 640px) {
-  .ov-kpis {
+  .ov-kpis,
+  .ov-kpis-three {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-3);
   }
 

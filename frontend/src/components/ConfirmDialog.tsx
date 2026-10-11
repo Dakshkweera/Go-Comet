@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { Icon } from "./Icon.js";
+import { Icon, type IconName } from "./Icon.js";
 
 export function ConfirmDialog({
   open,
@@ -11,6 +11,9 @@ export function ConfirmDialog({
   error,
   onConfirm,
   onCancel,
+  icon = "trash",
+  tone = "danger",
+  errorTitle = "Deletion failed.",
 }: {
   open: boolean;
   title: string;
@@ -21,6 +24,9 @@ export function ConfirmDialog({
   error: string | null;
   onConfirm: () => void;
   onCancel: () => void;
+  icon?: IconName;
+  tone?: "danger" | "info";
+  errorTitle?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -49,8 +55,8 @@ export function ConfirmDialog({
       }}
     >
       <div className="dialog-panel">
-        <div className="dialog-icon tone-danger" aria-hidden="true">
-          <Icon name="trash" size={18} />
+        <div className={`dialog-icon tone-${tone}`} aria-hidden="true">
+          <Icon name={icon} size={18} />
         </div>
         <div className="dialog-content">
           <h2 className="dialog-title" id="confirm-dialog-title">
@@ -61,7 +67,7 @@ export function ConfirmDialog({
             <div className="callout tone-danger dialog-error" role="alert">
               <Icon name="alert" size={16} />
               <span>
-                <strong>Deletion failed.</strong> {error}
+                <strong>{errorTitle}</strong> {error}
               </span>
             </div>
           )}
@@ -77,8 +83,13 @@ export function ConfirmDialog({
         >
           Cancel
         </button>
-        <button type="button" className="btn btn-danger" onClick={onConfirm} disabled={busy}>
-          {busy ? <span className="spinner" aria-hidden="true" /> : <Icon name="trash" size={15} />}
+        <button
+          type="button"
+          className={tone === "danger" ? "btn btn-danger" : "btn btn-primary"}
+          onClick={onConfirm}
+          disabled={busy}
+        >
+          {busy ? <span className="spinner" aria-hidden="true" /> : <Icon name={icon} size={15} />}
           {busy ? busyLabel : confirmLabel}
         </button>
       </div>

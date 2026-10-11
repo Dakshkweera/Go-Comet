@@ -2,6 +2,7 @@ import {
   extractedNumberFieldSchema,
   extractedTextFieldSchema,
   REQUIRED_FIELDS,
+  type DocumentTypeHint,
   type ExtractionResult,
 } from "../../schemas/index.js";
 import { LlmError } from "../llm/index.js";
@@ -54,6 +55,21 @@ function normalizeField(field: (typeof REQUIRED_FIELDS)[number], raw: unknown) {
       })
     : extractedTextFieldSchema.safeParse({ ...base, value: toText(raw.value) });
   return parsed.success ? parsed.data : missing();
+}
+
+/** Reads the model's document type answer; anything malformed counts as no answer. */
+export function readDocumentTypeHint(raw: unknown): DocumentTypeHint | null {
+  if (!isObject(raw)) return null;
+  const hint = raw.document_type;
+  if (typeof hint === "string") return { value: hint, confidence: 0 };
+  if (!isObject(hint) || typeof hint.value !== "string") return null;
+  const confidence =
+    typeof hint.confidence === "string" ? Number(hint.confidence) : hint.confidence;
+  return {
+    value: hint.value,
+    confidence:
+      typeof confidence === "number" && confidence >= 0 && confidence <= 1 ? confidence : 0,
+  };
 }
 
 /**

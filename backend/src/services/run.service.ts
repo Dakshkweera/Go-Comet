@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
-import { and, asc, desc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
 import {
   REQUIRED_FIELDS,
   type Discrepancy,
@@ -29,6 +29,8 @@ export const SUPPORTED_MIME_TYPES: Record<string, string> = {
   "image/webp": "webp",
 };
 
+export const sanitizeFilename = (name: string) => name.replace(/[^\w.\- ]/g, "_").slice(0, 200);
+
 export async function createRun(
   db: NovaDb,
   uploadDir: string,
@@ -45,14 +47,14 @@ export async function createRun(
     .select({ id: pipelineRuns.id })
     .from(documents)
     .innerJoin(pipelineRuns, eq(pipelineRuns.documentId, documents.id))
-    .where(eq(documents.contentHash, contentHash))
+    .where(and(eq(documents.contentHash, contentHash), isNull(documents.shipmentId)))
     .get();
 
   db.transaction((tx) => {
     tx.insert(documents)
       .values({
         id: documentId,
-        originalFilename: file.filename.replace(/[^\w.\- ]/g, "_").slice(0, 200),
+        originalFilename: sanitizeFilename(file.filename),
         mimeType: file.mimeType,
         fileSize: file.buffer.length,
         storagePath,
@@ -69,9 +71,10 @@ export async function createRun(
 export type DeleteRunResult =
   | { status: "deleted"; runId: string; documentId: string; fileDeleted: boolean }
   | { status: "not_found" }
-  | { status: "in_progress" };
+  | { status: "in_progress" }
+  | { status: "part_of_shipment" };
 
-const isInside = (dir: string, path: string) => {
+export const isInside = (dir: string, path: string) => {
   const rel = relative(resolve(dir), resolve(path));
   return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
 };
@@ -83,9 +86,10 @@ export async function deleteRun(
 ): Promise<DeleteRunResult> {
   const run = db.select().from(pipelineRuns).where(eq(pipelineRuns.id, runId)).get();
   if (!run) return { status: "not_found" };
+  const doc = db.select().from(documents).where(eq(documents.id, run.documentId)).get();
+  if (doc?.shipmentId) return { status: "part_of_shipment" };
   if (run.status === "RECEIVED" || run.status === "PROCESSING") return { status: "in_progress" };
 
-  const doc = db.select().from(documents).where(eq(documents.id, run.documentId)).get();
   const sharedDocument = db
     .select({ id: pipelineRuns.id })
     .from(pipelineRuns)
@@ -122,6 +126,7 @@ export function listRuns(db: NovaDb) {
     })
     .from(pipelineRuns)
     .innerJoin(documents, eq(documents.id, pipelineRuns.documentId))
+    .where(isNull(documents.shipmentId))
     .orderBy(desc(pipelineRuns.createdAt))
     .limit(50)
     .all();

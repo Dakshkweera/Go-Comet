@@ -1,0 +1,109 @@
+/* ---------- Inbox ---------- */
+.ib-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.ib-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.ib-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    border-color 0.12s,
+    color 0.12s;
+}
+
+.ib-chip:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.ib-chip.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.ib-chip-count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--neutral-soft);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.ib-chip.is-active .ib-chip-count {
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.ib-wrap {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ib-subject {
+  min-width: 220px;
+  max-width: 360px;
+}
+
+.ib-status {
+  min-width: 230px;
+  max-width: 340px;
+}
+
+.ib-files {
+  width: 1%;
+}
+
+.ib-actions {
+  width: 1%;
+  text-align: right;
+}
+
+.ib-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+}
+
+.ib-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.ib-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.ib-search {
+  width: min(100%, 300px);
+}

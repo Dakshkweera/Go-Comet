@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import type { ExtractionInput, ExtractionResult, ExtractorAgent } from "../../schemas/index.js";
 import type { ContentPart, LlmClient } from "../llm/index.js";
-import { normalizeExtraction } from "./normalize.js";
+import { normalizeExtraction, readDocumentTypeHint } from "./normalize.js";
 import { EXTRACTION_PROMPT } from "./prompt.js";
 import { applyQualityGate, readPdfText } from "./quality.js";
 
@@ -28,7 +28,9 @@ export function createExtractor({ llm, model }: { llm: LlmClient; model: string 
           },
         ],
       });
-      return applyQualityGate(normalizeExtraction(json), documentText);
+      const fields = applyQualityGate(normalizeExtraction(json), documentText);
+      const documentType = readDocumentTypeHint(json);
+      return documentType ? { ...fields, documentType } : fields;
     },
   };
 }

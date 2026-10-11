@@ -9,15 +9,20 @@ const baseDir = fileURLToPath(new URL("..", import.meta.url));
 loadDotenv({ path: resolve(baseDir, ".env"), quiet: true });
 
 const config = loadConfig(process.env, baseDir);
-const { logger, db, queryService, pipeline } = buildContainer(config);
+const { logger, db, queryService, pipeline, shipments, inbox, watcher } = buildContainer(config);
 
 const app = createApp({
   db,
   pipeline,
   queryService,
+  shipments,
+  inbox,
   uploadDir: config.uploadDir,
+  emailDir: config.inbox.emailDir,
   minConfidence: config.policy.extractionMinConfidence,
   maxUploadBytes: config.limits.maxUploadBytes,
+  maxEmailBytes: config.limits.maxEmailBytes,
+  cgMailbox: config.cg.mailbox,
   corsOrigins: config.corsOrigins,
   logger,
 });
@@ -30,6 +35,9 @@ server.once("listening", () => {
     logger.info({ runId }, "resuming interrupted run");
     pipeline.run(runId).catch((err) => logger.error({ err, runId }, "resume failed"));
   }
+  void shipments.resume();
+  watcher.start();
+  logger.info({ inbox: config.inbox.dir, pollMs: config.inbox.pollMs }, "watching inbox");
 });
 
 server.once("error", (err) => {
@@ -38,6 +46,7 @@ server.once("error", (err) => {
 });
 
 const shutdown = () => {
+  watcher.stop();
   server.close(() => {
     db.$client.close();
     process.exit(0);

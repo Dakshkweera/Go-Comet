@@ -174,7 +174,7 @@ export function RulesPage() {
           title="No customer rules to show yet"
           action={
             runs.length === 0 ? (
-              <Link to="/" className="btn btn-primary btn-sm">
+              <Link to="/documents" className="btn btn-primary btn-sm">
                 <Icon name="upload" size={14} />
                 Upload document
               </Link>

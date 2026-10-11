@@ -232,7 +232,7 @@ export function CustomersPage() {
           icon="customers"
           title="No customers yet"
           action={
-            <Link to="/" className="btn btn-primary btn-sm">
+            <Link to="/documents" className="btn btn-primary btn-sm">
               <Icon name="upload" size={14} />
               Upload document
             </Link>

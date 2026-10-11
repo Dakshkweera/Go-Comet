@@ -1,29 +1,51 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import type { HealthResponse } from "../types/api.js";
 import { api } from "../api.js";
-import { useRuns } from "../data.js";
+import { useShipments } from "../shipmentData.js";
+import { exceptionCount, isProcessing } from "../shipmentDomain.js";
 import { Link, navigate, usePath } from "../router.js";
 import { Icon, type IconName } from "./Icon.js";
 
 type NavItem = { to: string; label: string; icon: IconName };
+type NavGroup = { heading: string | null; items: NavItem[] };
 
-const WORKSPACE: NavItem[] = [
-  { to: "/", label: "Overview", icon: "overview" },
-  { to: "/documents", label: "Documents", icon: "documents" },
-  { to: "/exceptions", label: "Exceptions", icon: "exceptions" },
-  { to: "/queries", label: "Queries", icon: "queries" },
+const NAV: NavGroup[] = [
+  { heading: null, items: [{ to: "/", label: "Overview", icon: "overview" }] },
+  {
+    heading: "Email workflow",
+    items: [
+      { to: "/inbox", label: "Inbox", icon: "inbox" },
+      { to: "/processing", label: "Processing", icon: "clock" },
+      { to: "/exceptions", label: "Exceptions", icon: "exceptions" },
+      { to: "/shipments", label: "Shipments", icon: "shipments" },
+      { to: "/sent-emails", label: "Sent emails", icon: "send" },
+    ],
+  },
+  {
+    heading: "Simulation",
+    items: [{ to: "/simulate", label: "Simulate email", icon: "mail" }],
+  },
+  {
+    heading: "Workspace",
+    items: [
+      { to: "/documents", label: "Documents", icon: "documents" },
+      { to: "/queries", label: "Queries", icon: "queries" },
+    ],
+  },
+  {
+    heading: "Configuration",
+    items: [
+      { to: "/customers", label: "Customers", icon: "customers" },
+      { to: "/rules", label: "Rules", icon: "rules" },
+    ],
+  },
 ];
 
-const CONFIGURATION: NavItem[] = [
-  { to: "/customers", label: "Customers", icon: "customers" },
-  { to: "/rules", label: "Rules", icon: "rules" },
-];
-
-const isActive = (to: string, path: string) =>
-  to === "/" ? path === "/" : path === to || path.startsWith(`${to}/`);
+const isActive = (item: NavItem, path: string) =>
+  item.to === "/" ? path === "/" : path === item.to || path.startsWith(`${item.to}/`);
 
 export function sectionFor(path: string) {
-  return [...WORKSPACE, ...CONFIGURATION].find((item) => isActive(item.to, path)) ?? null;
+  return NAV.flatMap((group) => group.items).find((item) => isActive(item, path)) ?? null;
 }
 
 type Health = "checking" | "ok" | "degraded" | "offline";
@@ -59,13 +81,21 @@ const HEALTH_LABEL: Record<Health, string> = {
 function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const path = usePath();
   const health = useHealth();
-  const { runs } = useRuns();
-  const exceptions =
-    runs?.filter((r) => r.decision === "human_review" || r.decision === "amendment_request")
-      .length ?? 0;
+  const { shipments } = useShipments({ watchForMail: false });
+  const counts: Record<string, { value: number; title: string }> = {
+    "/processing": {
+      value: shipments?.filter((s) => isProcessing(s.status)).length ?? 0,
+      title: "Emails being processed",
+    },
+    "/exceptions": {
+      value: exceptionCount(shipments ?? []),
+      title: "Shipments that need your decision or a reply",
+    },
+  };
 
   const renderItem = (item: NavItem) => {
-    const active = isActive(item.to, path);
+    const active = isActive(item, path);
+    const count = counts[item.to];
     return (
       <li key={item.to}>
         <Link
@@ -76,8 +106,10 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
         >
           <Icon name={item.icon} size={17} />
           <span>{item.label}</span>
-          {item.to === "/exceptions" && exceptions > 0 && (
-            <span className="nav-count">{exceptions}</span>
+          {count && count.value > 0 && (
+            <span className="nav-count" title={count.title}>
+              {count.value}
+            </span>
           )}
         </Link>
       </li>
@@ -100,10 +132,12 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
       </Link>
 
       <nav className="nav">
-        <p className="nav-heading">Workspace</p>
-        <ul>{WORKSPACE.map(renderItem)}</ul>
-        <p className="nav-heading">Configuration</p>
-        <ul>{CONFIGURATION.map(renderItem)}</ul>
+        {NAV.map((group) => (
+          <Fragment key={group.heading ?? "home"}>
+            {group.heading && <p className="nav-heading">{group.heading}</p>}
+            <ul>{group.items.map(renderItem)}</ul>
+          </Fragment>
+        ))}
       </nav>
 
       <div className={`sidebar-status health-${health}`} role="status">
@@ -122,7 +156,7 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
   function search(e: FormEvent) {
     e.preventDefault();
     const q = query.trim();
-    navigate(q ? `/documents?q=${encodeURIComponent(q)}` : "/documents");
+    navigate(q ? `/shipments?q=${encodeURIComponent(q)}` : "/shipments");
     setQuery("");
   }
 
@@ -144,8 +178,8 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search documents, customers, invoices…"
-          aria-label="Search documents"
+          placeholder="Search shipments, suppliers, subjects…"
+          aria-label="Search shipments"
         />
       </form>
     </header>
