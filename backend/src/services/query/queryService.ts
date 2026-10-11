@@ -11,6 +11,8 @@ import { ANSWER_PROMPT, CLASSIFY_PROMPT, GENERAL_PROMPT, SQL_PROMPT } from "./pr
 import { validateSql } from "./sqlValidator.js";
 
 const MAX_ROWS = 200;
+// Server paths and hashes are never shown, even when the model selects every column.
+const INTERNAL_COLUMNS = new Set(["storage_path", "raw_path", "content_hash", "evaluation_hash"]);
 const answerSchema = z.object({ answer: z.string().min(1) });
 
 export class QueryError extends Error {
@@ -31,8 +33,14 @@ export function executeReadOnly(db: NovaDb, sql: string): QueryExecutionResult {
   );
   if (!stmt.readonly)
     throw new QueryError("SQL_INVALID", "Only read-only queries can be executed.");
-  const rows = stmt.all() as Record<string, unknown>[];
-  return { columns: stmt.columns().map((c) => c.name), rows };
+  const columns = stmt
+    .columns()
+    .map((c) => c.name)
+    .filter((name) => !INTERNAL_COLUMNS.has(name));
+  const rows = (stmt.all() as Record<string, unknown>[]).map((row) =>
+    Object.fromEntries(columns.map((name) => [name, row[name]])),
+  );
+  return { columns, rows };
 }
 
 export function createQueryService({
