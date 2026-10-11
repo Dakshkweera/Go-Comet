@@ -10,7 +10,16 @@ export const ALLOWED_TABLES = new Set([
   "validation_results",
   "decisions",
   "pipeline_stage_runs",
+  "shipments",
+  "shipment_fields",
+  "shipment_issues",
+  "review_actions",
+  "shipment_events",
+  "email_log",
 ]);
+
+// Checked anywhere in the text, so comma joins and subqueries cannot reach them.
+const DENIED_TABLES = /\b(inbound_emails|outbound_emails|sqlite_\w+)\b/i;
 
 const FORBIDDEN =
   /\b(insert|update|delete|drop|alter|create|replace|attach|detach|pragma|vacuum|reindex|analyze|begin|commit|rollback|savepoint|release)\b/i;
@@ -25,6 +34,8 @@ export function validateSql(raw: string): SqlValidationResult {
   if (!/^(select|with)\b/i.test(sql)) return invalid("Only SELECT queries are allowed.");
   const forbidden = sql.match(FORBIDDEN);
   if (forbidden) return invalid(`${forbidden[1]!.toUpperCase()} statements are not permitted.`);
+  const denied = sql.match(DENIED_TABLES);
+  if (denied) return invalid(`Table "${denied[1]!.toLowerCase()}" is not available to queries.`);
 
   const cteNames = new Set(
     [...sql.matchAll(/(?:with|,)\s*(\w+)\s+as\s*\(/gi)].map((m) => m[1]!.toLowerCase()),

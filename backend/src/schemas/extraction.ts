@@ -62,6 +62,11 @@ export const extractionInputSchema = z.object({
 });
 export type ExtractionInput = z.infer<typeof extractionInputSchema>;
 
+export type DocumentTypeHint = { value: string; confidence: number };
+
+/** The model's answer to "what document is this?" rides along; deterministic code decides. */
+export type ExtractorOutput = ExtractionResult & { documentType?: DocumentTypeHint };
+
 export interface ExtractorAgent {
-  extract(input: ExtractionInput): Promise<ExtractionResult>;
+  extract(input: ExtractionInput): Promise<ExtractorOutput>;
 }

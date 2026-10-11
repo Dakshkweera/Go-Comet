@@ -1,5 +1,7 @@
+export { classifyDocument, CLASSIFICATION_MIN_CONFIDENCE, findTitle } from "./classify.js";
 export { createExtractor, createFakeExtractor, FAKE_EXTRACTION } from "./extractor.js";
-export { normalizeExtraction } from "./normalize.js";
+export { limitExtractor } from "./limit.js";
+export { normalizeExtraction, readDocumentTypeHint } from "./normalize.js";
 export {
   AMBIGUOUS_CONFIDENCE_CAP,
   applyQualityGate,

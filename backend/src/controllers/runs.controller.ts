@@ -75,6 +75,17 @@ export function createRunsController({
       res.status(404).json(apiError("RUN_NOT_FOUND", "Run not found."));
       return;
     }
+    if (result.status === "part_of_shipment") {
+      res
+        .status(409)
+        .json(
+          apiError(
+            "RUN_PART_OF_SHIPMENT",
+            "This document belongs to a shipment and is kept for its audit trail.",
+          ),
+        );
+      return;
+    }
     if (result.status === "in_progress") {
       res
         .status(409)

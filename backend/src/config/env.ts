@@ -29,6 +29,16 @@ const envSchema = z
     MAX_UPLOAD_MB: z.coerce.number().positive().max(100).default(15),
     LLM_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(5).default(3),
     LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
+    EXTRACTION_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(2),
+
+    INBOX_DIR: optionalString.default("./data/inbox"),
+    INBOX_POLL_MS: z.coerce.number().int().min(0).default(2000),
+    EMAIL_DIR: optionalString.default("./data/emails"),
+    SAMPLE_EMAILS_DIR: optionalString.default("../samples/emails"),
+    MAX_ATTACHMENTS: z.coerce.number().int().min(1).max(50).default(10),
+    MAX_EMAIL_MB: z.coerce.number().positive().max(200).default(25),
+    CG_MAILBOX: z.string().trim().email().default("cg@nova.local"),
+    CG_SIGNATURE: optionalString.default("CG Team"),
   })
   .superRefine((env, ctx) => {
     if (env.LLM_PROVIDER !== "openrouter") return;
@@ -75,6 +85,7 @@ export function loadConfig(env: NodeJS.ProcessEnv, baseDir: string) {
       apiKey: e.LLM_API_KEY ?? null,
       maxAttempts: e.LLM_MAX_ATTEMPTS,
       timeoutMs: e.LLM_TIMEOUT_MS,
+      concurrency: e.EXTRACTION_CONCURRENCY,
       models: {
         extractor: e.EXTRACTOR_MODEL ?? null,
         queryRouter: e.QUERY_ROUTER_MODEL ?? null,
@@ -87,6 +98,15 @@ export function loadConfig(env: NodeJS.ProcessEnv, baseDir: string) {
     },
     limits: {
       maxUploadBytes: Math.floor(e.MAX_UPLOAD_MB * 1024 * 1024),
+      maxEmailBytes: Math.floor(e.MAX_EMAIL_MB * 1024 * 1024),
+      maxAttachments: e.MAX_ATTACHMENTS,
     },
+    inbox: {
+      dir: abs(e.INBOX_DIR),
+      pollMs: e.INBOX_POLL_MS,
+      emailDir: abs(e.EMAIL_DIR),
+      samplesDir: abs(e.SAMPLE_EMAILS_DIR),
+    },
+    cg: { mailbox: e.CG_MAILBOX, signature: e.CG_SIGNATURE },
   };
 }

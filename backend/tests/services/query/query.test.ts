@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createDb, documents, pipelineRuns, seedDb, type NovaDb } from "../../../src/db/index.js";
+import {
+  createDb,
+  documents,
+  pipelineRuns,
+  seedDb,
+  shipments,
+  type NovaDb,
+} from "../../../src/db/index.js";
 import type { LlmClient } from "../../../src/services/llm/index.js";
 import {
   createQueryService,
@@ -13,6 +20,9 @@ describe("validateSql", () => {
     "SELECT COUNT(*) FROM pipeline_runs WHERE final_decision = 'human_review'",
     "SELECT d.original_filename FROM pipeline_runs pr JOIN documents d ON d.id = pr.document_id;",
     "WITH recent AS (SELECT * FROM pipeline_runs) SELECT COUNT(*) FROM recent",
+    "SELECT s.reference FROM shipments s JOIN customers c ON c.id = s.customer_id WHERE s.status = 'NEEDS_REVIEW'",
+    "SELECT i.kind FROM shipment_issues i JOIN shipment_fields f ON f.shipment_id = i.shipment_id",
+    "SELECT subject FROM email_log WHERE direction = 'outbound'",
   ])("accepts %s", (sql) => {
     expect(validateSql(sql).valid).toBe(true);
   });
@@ -27,6 +37,8 @@ describe("validateSql", () => {
     ["SELECT * FROM sqlite_master", "not available"],
     ["WITH x AS (DELETE FROM customers) SELECT 1", "DELETE"],
     ["PRAGMA table_info(customers)", "Only SELECT"],
+    ["SELECT * FROM shipments, inbound_emails", "inbound_emails"],
+    ["SELECT (SELECT body FROM outbound_emails LIMIT 1) AS b FROM shipments", "outbound_emails"],
   ])("rejects %s", (sql, reason) => {
     const result = validateSql(sql);
     expect(result.valid).toBe(false);
@@ -119,6 +131,39 @@ describe("query service", () => {
       new Error("model down"),
     ]);
     expect((await service.answer("List runs")).answer).toBe("The query returned 1 row(s).");
+  });
+
+  it("answers 'pending review for customer X' from shipment rows", async () => {
+    db.insert(shipments)
+      .values([
+        {
+          id: "s1",
+          reference: "SHP-0001",
+          subject: "a",
+          supplierAddress: "x@y",
+          status: "NEEDS_REVIEW",
+          customerId: "cust_bata_india",
+        },
+        {
+          id: "s2",
+          reference: "SHP-0002",
+          subject: "b",
+          supplierAddress: "x@y",
+          status: "APPROVAL_SENT",
+          customerId: "cust_bata_india",
+        },
+      ])
+      .run();
+    const { service, prompts } = serviceWith([
+      { type: "database_query", reason: "shipments" },
+      {
+        sql: "SELECT s.reference, s.status FROM shipments s JOIN customers c ON c.id = s.customer_id WHERE c.name = 'Bata India' AND s.status IN ('NEEDS_REVIEW','AMENDMENT_READY','APPROVAL_READY')",
+      },
+      { answer: "SHP-0001 is waiting for your review." },
+    ]);
+    const res = await service.answer("Show me everything pending review for Bata India");
+    expect(res.data?.rows).toEqual([{ reference: "SHP-0001", status: "NEEDS_REVIEW" }]);
+    expect(prompts[2]).toContain("SHP-0001");
   });
 
   it("answers general questions without touching the database", async () => {

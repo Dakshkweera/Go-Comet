@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import {
   REQUIRED_FIELDS,
   type ExtractionResult,
@@ -19,6 +19,7 @@ import {
 } from "../db/index.js";
 import { LlmError } from "./llm/index.js";
 import { loadRules, resolveCustomer } from "./customer.service.js";
+import { classifyDocument, readPdfText } from "./extraction/index.js";
 
 export const newId = (prefix: string) => `${prefix}_${randomUUID()}`;
 const now = () => new Date().toISOString();
@@ -58,7 +59,7 @@ export function loadExtraction(db: NovaDb, runId: string): ExtractionResult | nu
 
 export function createPipeline(deps: PipelineDeps) {
   const { db } = deps;
-  const active = new Set<string>();
+  const active = new Map<string, Promise<void>>();
 
   const updateRun = (runId: string, values: Partial<typeof pipelineRuns.$inferInsert>) =>
     db
@@ -96,7 +97,21 @@ export function createPipeline(deps: PipelineDeps) {
           filePath: doc.storagePath,
           mimeType: doc.mimeType,
         });
+        const classification = doc.shipmentId
+          ? classifyDocument(
+              doc.mimeType === "application/pdf"
+                ? await readPdfText(doc.storagePath).catch(() => null)
+                : null,
+              result.documentType,
+            )
+          : null;
         db.transaction((tx) => {
+          if (classification) {
+            tx.update(documents)
+              .set({ docType: classification.docType, docTypeReason: classification.reason })
+              .where(eq(documents.id, doc.id))
+              .run();
+          }
           for (const field of REQUIRED_FIELDS) {
             const f = result[field];
             tx.insert(extractions)
@@ -167,6 +182,19 @@ export function createPipeline(deps: PipelineDeps) {
       else extraction = outcome;
     }
 
+    // Shipment attachments stop after extraction; the shipment checks them together.
+    const doc = db.select().from(documents).where(eq(documents.id, run.documentId)).get()!;
+    if (doc.shipmentId) {
+      updateRun(runId, {
+        status: "COMPLETED",
+        currentStage: extraction ? "EXTRACTED" : "EXTRACTING",
+        errorCode: errors[0]?.code ?? null,
+        errorMessage: errors[0]?.message ?? null,
+        completedAt: now(),
+      });
+      return;
+    }
+
     const resolution = extraction ? resolveCustomer(db, extraction.consignee_name.value) : null;
     const rules =
       resolution?.status === "resolved" && resolution.customerId
@@ -228,29 +256,44 @@ export function createPipeline(deps: PipelineDeps) {
     });
   }
 
+  async function guarded(runId: string) {
+    try {
+      await process(runId);
+    } catch (err) {
+      updateRun(runId, {
+        status: "FAILED",
+        errorCode: "PIPELINE_ERROR",
+        errorMessage: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    } finally {
+      active.delete(runId);
+    }
+  }
+
   return {
-    async run(runId: string) {
-      if (active.has(runId)) return;
-      active.add(runId);
-      try {
-        await process(runId);
-      } catch (err) {
-        updateRun(runId, {
-          status: "FAILED",
-          errorCode: "PIPELINE_ERROR",
-          errorMessage: err instanceof Error ? err.message : String(err),
-        });
-        throw err;
-      } finally {
-        active.delete(runId);
+    /** A second call for a run already in flight waits for that same run. */
+    run(runId: string): Promise<void> {
+      let running = active.get(runId);
+      if (!running) {
+        running = guarded(runId);
+        active.set(runId, running);
       }
+      return running;
     },
 
+    /** Standalone uploads only; shipment attachments are resumed by the shipment service. */
     pendingRunIds(): string[] {
       return db
         .select({ id: pipelineRuns.id })
         .from(pipelineRuns)
-        .where(inArray(pipelineRuns.status, ["RECEIVED", "PROCESSING"]))
+        .innerJoin(documents, eq(documents.id, pipelineRuns.documentId))
+        .where(
+          and(
+            inArray(pipelineRuns.status, ["RECEIVED", "PROCESSING"]),
+            isNull(documents.shipmentId),
+          ),
+        )
         .all()
         .map((r) => r.id);
     },

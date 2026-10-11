@@ -15,6 +15,19 @@ describe("loadConfig", () => {
     expect(cfg.limits.maxUploadBytes).toBe(15 * 1024 * 1024);
   });
 
+  it("applies Part 2 inbox defaults", () => {
+    const cfg = loadConfig({}, root);
+    expect(cfg.inbox).toEqual({
+      dir: resolve(root, "data/inbox"),
+      pollMs: 2000,
+      emailDir: resolve(root, "data/emails"),
+      samplesDir: resolve(root, "../samples/emails"),
+    });
+    expect(cfg.limits).toMatchObject({ maxEmailBytes: 25 * 1024 * 1024, maxAttachments: 10 });
+    expect(cfg.llm.concurrency).toBe(2);
+    expect(cfg.cg).toEqual({ mailbox: "cg@nova.local", signature: "CG Team" });
+  });
+
   it("reads several CORS origins and trims them", () => {
     const cfg = loadConfig(
       { CORS_ORIGIN: " https://nova.vercel.app , http://localhost:5173 " },
@@ -52,6 +65,8 @@ describe("loadConfig", () => {
     ["PORT", "0"],
     ["LLM_MAX_ATTEMPTS", "50"],
     ["LLM_PROVIDER", "openai"],
+    ["CG_MAILBOX", "not-an-email"],
+    ["EXTRACTION_CONCURRENCY", "0"],
   ])("rejects invalid %s=%s", (key, value) => {
     expect(() => loadConfig({ [key]: value }, root)).toThrow(/Invalid configuration/);
   });
