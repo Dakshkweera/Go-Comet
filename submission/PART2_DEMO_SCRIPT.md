@@ -9,9 +9,10 @@ The assignment asks for **a 2-minute video showing the trigger → verification 
 | Runnable agent + UI, with a README that has setup and run instructions | `README.md` → *Install and Run*, *Part 2: supplier emails*. Backend: 270 tests, frontend: 105 tests, both build. | Done |
 | PRD, PDF, **max 1 page** (2 personas, 2 JTBDs, 1 north-star, 1 failure mode) | [`submission/PART2_PRD.pdf`](PART2_PRD.pdf) (1 page) · [Markdown](PART2_PRD.md) | Done |
 | Sample SU emails + the trade documents used in the demo | `samples/emails/` (6 `.eml`, with their PDFs in a folder of the same name) · `samples/demo-emails/` (3 `.eml`, one per outcome) | Done |
-| 2-minute demo video: trigger → verification → draft → CG edits and sends | Script below | **You record it** |
+| 2-minute demo video: trigger → verification → draft → CG edits and sends | https://www.youtube.com/watch?v=SzGOhgzxHNo (script below) | Done |
+| Live deployment (not required, but available) | https://go-comet-ashen.vercel.app · API https://nova-kytm.onrender.com | Done |
 
-Before submitting: merge to `main` and push, rotate the OpenRouter key (it was shown in chat earlier), and add the video link to the *Live Demo* table in the README.
+Before submitting: rotate the OpenRouter key (it was shown in chat earlier).
 
 ## Before you record
 

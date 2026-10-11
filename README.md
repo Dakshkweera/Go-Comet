@@ -2,7 +2,7 @@
 
 # ◈ Nova — Trade Document Intelligence
 
-**Reads trade documents, validates them against customer-specific rules, and safely routes exceptions to humans.**
+**Reads supplier emails and trade documents, checks them against customer rules and against each other, and drafts the reply a CG operator reviews and sends.**
 
 ![Node](https://img.shields.io/badge/Node-22+-339933?logo=node.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
@@ -10,42 +10,45 @@
 ![Express](https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-Drizzle-003B57?logo=sqlite&logoColor=white)
 ![Gemini](https://img.shields.io/badge/Gemini_2.5-via_OpenRouter-4285F4?logo=googlegemini&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-286_passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-375_passing-2ea44f)
 
-[How it works](#-how-it-works) · [Architecture](#-system-architecture) · [Safety](#-safety-by-design) · [The product](#-the-product) · [Run it](#-install-and-run) · [Demo](#-demo-walkthrough)
+**[Live app](https://go-comet-ashen.vercel.app)** · [Demo video (Part 2)](https://www.youtube.com/watch?v=SzGOhgzxHNo) · [How it works](#-how-it-works) · [Architecture](#-system-architecture) · [Safety](#-safety-by-design) · [The product](#-the-product) · [Run it](#-install-and-run) · [Demo](#-demo-walkthrough)
 
 </div>
 
 ---
 
-A trade operations team receives commercial invoices in every shape: clean PDFs, skewed scans, photos. Someone has to read each one, check it against what the customer agreed to (HS code, ports, Incoterms, weight limits), and decide whether the shipment can proceed, needs a correction from the supplier, or needs a person to look closer.
+A shipment's documents arrive by email: bill of lading, commercial invoice, packing list, sometimes a certificate of origin, as clean PDFs, skewed scans or photos. A CG operator opens every attachment, checks each field against what the customer agreed to (HS code, ports, Incoterms, weight limits) and against the other documents, then replies to the supplier: approved, or here is what to fix. Two to four rounds per shipment are normal, and each one adds hours.
 
-Nova automates that loop end to end. Upload a document and, in about 15 seconds, it extracts the eight fields that matter, checks every value against the source text, resolves the customer, validates the customer's rules, and makes one of three decisions, with the reason attached.
+Nova does the reading and checking, and hands the CG a verification result and a ready reply. When a supplier email arrives, every attachment is read and checked against its own text. The set is checked for completeness first, then against the customer's rules and across documents. Nova drafts one reply listing every problem by file; the CG reviews it, edits it and sends it. Nothing is sent on its own. A single document can also be checked by itself (Part 1).
 
 ```
-Trade document  ─►  Extract  ─►  Resolve customer  ─►  Validate rules  ─►  Decide
-                                                                              │
-                              ┌───────────────────────┬───────────────────────┤
-                              ▼                       ▼                       ▼
-                        AUTO APPROVE            HUMAN REVIEW          AMENDMENT REQUEST
-                   every field reliable,    anything uncertain,     fields read reliably,
-                   every rule matched       explained per field     but the document breaks
-                                                                    a rule; draft included
+Supplier email ─► Read every attachment ─► Stage 1: intake ─► Stage 2: validation ─► Draft reply ─► CG sends
+                  extract · check against   complete and       customer rules and                    (never on
+                  PDF text · classify       readable?          documents agree?                      its own)
+                                                  │                    │
+                       ┌──────────────────────────┴────────┬───────────┴──────────────┐
+                       ▼                                   ▼                          ▼
+               NEEDS YOUR REVIEW                    AMENDMENT READY            READY TO APPROVE
+               Nova is unsure: the CG               a document is wrong:       every document agrees
+               checks the original                  one reply lists every      and every rule matched
+                                                    fix, grouped by file
 ```
 
-Nova is built on three commitments:
+Nova is built on four commitments:
 
 | | |
 |---|---|
 | **Read carefully** | A vision model extracts each field with a value, a confidence signal and the source evidence. A quality gate then checks every value against the document's own text layer. |
 | **Decide in code** | Validation and routing are deterministic TypeScript, not model output. They never hallucinate, they are fully unit tested, and a document cannot talk its way into an approval. |
 | **Fail towards a human** | Missing values, low confidence, ambiguous or conflicting evidence, an unknown customer, missing rules: all of them go to human review, with the reason named per field. |
+| **The human sends** | Every reply is an editable draft. Nothing reaches a supplier until the CG clicks Send, and the server refuses while anything still needs a decision. |
 
 ---
 
 ## ✔ What's Implemented
 
-Every Part 1 behaviour from the assignment, running end to end on real documents:
+**Part 1: the document pipeline.** Every Part 1 behaviour from the assignment, running end to end on real documents:
 
 - **A · Extractor Agent:** PDF and image ingestion, vision-model extraction of all 8 required fields, each with a confidence, the evidence text and any conflicting candidates.
 - **B · Validator Agent:** a match / mismatch / uncertain result per customer rule, with found vs expected. Uncertain fields are surfaced, never approved.
@@ -54,7 +57,7 @@ Every Part 1 behaviour from the assignment, running end to end on real documents
 - **E · Minimal UI:** a live pipeline stepper, extracted fields with confidence, validation results, the decision and reasoning, and a viewer for the original document.
 - **Also:** customer resolution, crash-resumable runs, duplicate detection, run deletion, and the confidence threshold recorded on every run.
 
-Part 2 wires the same agents into the CG workflow, with the CG screens on top (design in [docs/PART2_DESIGN.md](docs/PART2_DESIGN.md), one-page [PRD](submission/PART2_PRD.pdf)):
+**Part 2: from supplier email to CG reply.** The same agents wired into the CG workflow, with the CG screens on top (design in [docs/PART2_DESIGN.md](docs/PART2_DESIGN.md), one-page [PRD](submission/PART2_PRD.pdf)):
 
 - **Trigger:** a watcher picks up supplier emails (`.eml`) dropped into an inbox folder; one email thread is one shipment, every attachment is read on its own.
 - **Content-based classification:** invoice, bill of lading, packing list, certificate of origin or `OTHER`, from the PDF title and the model's view of the whole page, never the filename.
@@ -67,6 +70,48 @@ Part 2 wires the same agents into the CG workflow, with the CG screens on top (d
 
 ## ✦ How it works
 
+### Supplier email to CG reply (Part 2)
+
+| Stage | What happens | LLM? |
+|---|---|---|
+| **1. Trigger** | A watcher polls the inbox folder every 2 s for `.eml` files (the app's **Deliver** button drops a sample there). Idempotent on Message-ID; a reply in the thread becomes the next cycle of the same shipment. | — |
+| **2. Ingest** | Attachments are stored under generated names, their real type is detected from the bytes, inline signature images are skipped, and unreadable or oversized files are kept as failed documents, never dropped. The same file twice is stored once; a file resent unchanged reuses its extraction. | — |
+| **3. Read each attachment** | The Part 1 extractor and quality gate, per attachment (two at a time). The model also says what document it sees; code confirms it against the PDF title, and anything unclear is tagged `OTHER`. | Gemini 2.5 Pro |
+| **4. Stage 1: intake** | Files readable? Invoice, BOL and packing list present? Required fields present and readable on each? Customer known? Validation waits until intake is clean. | — |
+| **5. Stage 2: validation** | Every document against the customer rules. The owner document of a field (invoice, BOL or packing list) becomes the reference the others must match, but only if it passes the rule. Fields without an owner must simply agree. | — |
+| **6. Review** | Review items and amendment items on one screen. The CG *clarifies* (a verified value or a reason) or *amends* (asks the supplier) each review item; waiving a correction needs a note. | — |
+| **7. Reply** | One deterministic draft per stage, grouped by document with found vs expected, in the supplier's own thread. The CG edits it and clicks **Send** (simulated). | — |
+| **8. Ask** | Shipment results join the query layer: *"show me everything pending review for Bata India"*. | Gemini 2.5 Flash |
+
+```mermaid
+flowchart TD
+    E([Supplier email]) --> R["Read every attachment<br/>extract · quality gate · classify"]
+    R --> I{"Stage 1: intake<br/>readable · complete · customer known"}
+    I -- "Nova is unsure" --> RV1["NEEDS YOUR REVIEW<br/>CG checks the original"]
+    I -- "a file is missing or unreadable" --> AM1["AMENDMENT READY<br/>resend or send the document"]
+    I -- clean --> V{"Stage 2: validation<br/>customer rules · owner document · documents agree"}
+    V -- "Nova is unsure" --> RV2["NEEDS YOUR REVIEW"]
+    V -- "a document is wrong" --> AM2["AMENDMENT READY<br/>every fix, grouped by file"]
+    V -- "all clear" --> AP["READY TO APPROVE"]
+    RV1 -- "CG clarifies or amends" --> I
+    RV2 -- "CG clarifies or amends" --> V
+    AM1 --> S(["CG edits the draft and clicks Send"])
+    AM2 --> S
+    AP --> S
+    S -. "supplier's corrected reply = next cycle" .-> R
+
+    style RV1 fill:#fffaeb,stroke:#b54708,color:#7a2e0e
+    style RV2 fill:#fffaeb,stroke:#b54708,color:#7a2e0e
+    style AM1 fill:#fef3f2,stroke:#c01f3a,color:#7a1225
+    style AM2 fill:#fef3f2,stroke:#c01f3a,color:#7a1225
+    style AP fill:#ecfdf5,stroke:#13795b,color:#054f31
+```
+
+> [!IMPORTANT]
+> **Nova unsure → review; document wrong → amendment.** A person looks at the source only when Nova itself can't be sure. Problems that the supplier must fix go straight into one reply, and no document is assumed to be the right one.
+
+### Single document (Part 1)
+
 | Stage | What happens | LLM? |
 |---|---|---|
 | **1. Upload** | PDF, PNG, JPEG or WEBP. MIME allow-list, `%PDF-` signature check, size limit, SHA-256 duplicate detection. Returns `202` immediately; processing runs asynchronously. | — |
@@ -77,7 +122,7 @@ Part 2 wires the same agents into the CG workflow, with the CG screens on top (d
 | **6. Route** | A fixed decision order (below) produces the decision, a plain-English reason, the discrepancies and, for amendments, a ready-to-send request drafted by code. | — |
 | **7. Ask** | Natural-language questions become one guarded, read-only SQL query over the run history, and the result is summarized in plain English. | Gemini 2.5 Flash |
 
-### The decision logic
+### The decision logic (single document)
 
 ```mermaid
 flowchart TD
@@ -125,38 +170,80 @@ Model confidence is self-reported, so Nova treats it as a signal, not a probabil
 
 ```mermaid
 graph LR
-    U([Operator]) --> UI["React UI<br/>Vite SPA"]
-    UI -->|REST| API["Express API"]
+    SU([Supplier]) -->|".eml"| INB["Inbox watcher"]
+    CG([CG operator]) --> UI["React UI<br/>Vercel"]
+    UI -->|REST| API["Express API<br/>Render"]
+    API -->|"simulate / upload .eml"| INB
+    INB --> ING["Ingest<br/>idempotent"]
+    ING --> SH["Shipment service<br/>cycles · queue"]
 
-    API --> ORC["Pipeline<br/>Orchestrator"]
+    SH -->|"each attachment"| ORC["Pipeline<br/>orchestrator"]
+    API -->|"single document"| ORC
     ORC --> EX["Extractor Agent"]
     EX -->|"document +<br/>untrusted-data prompt"| VLM["Vision LLM<br/>Gemini 2.5 Pro"]
-    EX --> QG["Quality Gate<br/>PDF text cross-check"]
-    QG --> CR["Customer<br/>Resolver"]
-    CR --> VAL["Rule<br/>Validator"]
-    VAL --> RT["Decision<br/>Router"]
-    RT --> DB[("SQLite<br/>run history")]
+    EX --> QG["Quality gate<br/>+ classifier"]
+    ORC --> RT1["Validator + Router<br/>single document"]
+
+    SH --> VAL["Validator<br/>intake · rules · cross-document"]
+    VAL --> RT2["Shipment router<br/>+ reply draft"]
+    API --> SEND["Send gate<br/>CG click only"]
+
+    RT1 --> DB[("SQLite")]
+    RT2 --> DB
+    SEND --> DB
     ORC -.->|"every stage<br/>persisted"| DB
 
-    API --> QS["Query Service"]
+    API --> QS["Query service"]
     QS -->|"question + schema;<br/>≤ 50 rows to answer"| QLM["Gemini 2.5 Flash<br/>classify · SQL · answer"]
-    QS --> GUARD["SQL Guard<br/>read-only allow-list"]
+    QS --> GUARD["SQL guard<br/>read-only allow-list"]
     GUARD --> DB
 
     style VLM fill:#1e3a8a,color:#fff,stroke:#3b82f6
     style QLM fill:#1e3a8a,color:#fff,stroke:#3b82f6
     style QG fill:#14532d,color:#fff,stroke:#22c55e
-    style CR fill:#14532d,color:#fff,stroke:#22c55e
+    style RT1 fill:#14532d,color:#fff,stroke:#22c55e
     style VAL fill:#14532d,color:#fff,stroke:#22c55e
-    style RT fill:#14532d,color:#fff,stroke:#22c55e
+    style RT2 fill:#14532d,color:#fff,stroke:#22c55e
     style GUARD fill:#581c87,color:#fff,stroke:#a855f7
+    style SEND fill:#581c87,color:#fff,stroke:#a855f7
     style DB fill:#7c2d12,color:#fff,stroke:#f97316
     style ORC fill:#1e293b,color:#fff,stroke:#64748b
+    style SH fill:#1e293b,color:#fff,stroke:#64748b
 ```
 
-<sub>🟦 LLM calls  ·  🟩 deterministic TypeScript  ·  🟪 safety guard  ·  🟧 storage</sub>
+<sub>🟦 LLM calls  ·  🟩 deterministic TypeScript  ·  🟪 safety guards  ·  🟧 storage</sub>
 
-### Document processing flow
+### Supplier email flow (Part 2)
+
+```mermaid
+sequenceDiagram
+    actor SU as Supplier
+    participant W as Inbox watcher
+    participant S as Shipment service
+    participant X as Extractor + quality gate
+    participant D as SQLite
+    participant A as Express API
+    actor CG as CG operator
+
+    SU->>W: Email with attachments (.eml)
+    Note over W: polled every 2 s · Message-ID seen before? ignore<br/>reply in the thread? next cycle of the same shipment
+    W->>D: email · shipment · documents (RECEIVED)
+    W-)S: process the cycle
+    loop each attachment, two at a time
+        S->>X: extract · check against PDF text · classify
+        X->>D: fields, evidence, document type
+    end
+    S->>S: stage 1 intake → stage 2 validation → route → draft
+    S->>D: field grid · issues · draft · timeline
+    CG->>A: open shipment, clarify or amend items, edit the draft
+    A->>S: re-evaluate (no model call)
+    CG->>A: Send (confirmed)
+    Note over A: refused while items are open,<br/>for a stale draft version, or twice
+    A->>D: reply recorded as sent (simulated)
+    SU-->>W: corrected documents in the same thread → cycle 2
+```
+
+### Single-document flow (Part 1)
 
 ```mermaid
 sequenceDiagram
@@ -202,7 +289,7 @@ sequenceDiagram
     participant G as SQL Guard
     participant D as SQLite (read-only)
 
-    O->>Q: "Which shipments are waiting for human review?"
+    O->>Q: "Show me everything pending review for Bata India"
     Q->>L: Classify: general question or database query?
     alt General question (e.g. "What does FOB mean?")
         L-->>Q: Answer directly, no database access
@@ -210,7 +297,7 @@ sequenceDiagram
         Q->>L: Question + schema description → SQL
         L-->>Q: SELECT …
         Q->>G: Validate
-        Note over G: one statement · SELECT/WITH only<br/>no comments · no write keywords<br/>table allow-list
+        Note over G: one statement · SELECT/WITH only<br/>no comments · no write keywords<br/>table allow-list · no email bodies
         G-->>Q: Rejected? Regenerate once with the reason
         Q->>D: Execute as a read-only statement, LIMIT 200
         D-->>Q: Rows
@@ -245,21 +332,30 @@ Generated SQL must be a single `SELECT`/`WITH` statement, with no comments, no w
 MIME allow-list (PDF, PNG, JPEG, WEBP), a `%PDF-` signature check, a configurable size limit (15 MB by default), sanitized filenames, and SHA-256 content hashes that flag re-uploads. Deleting a run only removes files that sit inside the upload directory.
 
 **Layer 7: Durable, resumable runs.**
-Each stage's output is persisted as it completes. Model calls are retried with exponential backoff up to `LLM_MAX_ATTEMPTS`. After a crash, a boot-time sweep resumes unfinished runs without calling the model again for stages already done.
+Each stage's output is persisted as it completes. Model calls are retried with exponential backoff up to `LLM_MAX_ATTEMPTS`. After a crash, a boot-time sweep resumes unfinished runs and shipments without calling the model again for stages already done. The same email or file is never processed twice.
+
+**Layer 8: Nothing is sent on its own.**
+Every reply is a draft. Sending needs the CG's explicit call, and the server refuses while any item still needs a decision, for an outdated draft version (for example, when the supplier replied meanwhile), or a second time. Sending is simulated and recorded in Sent emails.
+
+**Layer 9: Documents must agree, and none is assumed right.**
+Every document is checked against the customer rules first. An owner document becomes the reference for the others only if it passes the rule, and a disagreement between documents goes into the reply instead of being settled by a majority vote.
+
+**Layer 10: Email content is untrusted too.**
+Email bodies never reach a model. Attachments are stored under generated names, their type is detected from the bytes, and unreadable files are only ever served as downloads. The query layer cannot read email bodies.
 
 ```
 Where the model's influence ends:
 
-  Document ──► Vision LLM ──► 8 fields + confidence + evidence
-                                        │
-                                        ▼
-                          Quality gate (checks the PDF text)
-                                        │
-                                        ▼
-            Customer resolution · rule validation · routing  ◄── code only
-                                        │
-                                        ▼
-                          Decision + reason + amendment draft
+  Supplier email ──► each attachment ──► Vision LLM ──► 8 fields + confidence + evidence + type
+                                                                   │
+                                                                   ▼
+                                                 Quality gate (checks the PDF text)
+                                                                   │
+                                                                   ▼
+            Intake · customer rules · cross-document checks · routing · reply draft  ◄── code only
+                                                                   │
+                                                                   ▼
+                                            CG reviews, edits and clicks Send  ◄── a person only
 ```
 
 ---
@@ -273,6 +369,8 @@ Where the model's influence ends:
 | Prompt injection in documents | Can steer the outcome | Document is untrusted data, and decisions don't come from the model |
 | Unreadable or conflicting values | A best guess, silently approved or rejected | Named per field and routed to a human |
 | Supplier corrections | Written ad hoc | Found-vs-expected discrepancies and a drafted amendment request |
+| Several documents per shipment | Checked one at a time | Every field compared across all documents and against the customer's rules |
+| Replies to the supplier | Sent automatically, or typed by hand | Drafted by code, grouped by file, edited and sent only by the CG |
 | Traceability | Final answer only | Every stage, attempt, evidence snippet and rule result stored per run |
 | Crash mid-run | Start over and pay again | Resumes from the last completed stage |
 | Asking questions about history | Needs an analyst and SQL | Plain English → guarded read-only SQL → answer, with the SQL shown |
@@ -291,6 +389,7 @@ A trade-operations workspace with a persistent sidebar. Each concern has its own
 | **Processing** | The emails being read right now, with the step each is on and the status of every file, updating live. Just-finished emails show where they ended up. |
 | **Exceptions** | Shipments that need a person: *Needs review* (a value to confirm) and *Amendment ready* (a reply to the supplier is drafted). A second tab holds the standalone-document exceptions. |
 | **Shipments** | Every shipment with status filters and search. Open one to verify, review and send the reply; shipments can be deleted so a sample can be received again. |
+| **Shipment detail** | A one-line verdict with the next action; the attachments with their detected type; a verification grid of every field against every document (owner marked, confidence shown); a discrepancy drawer with expected vs found, each document's value and its source text; the review panel; the editable reply with a confirmed Send; and the timeline. |
 | **Sent emails · Simulate email** | The simulated replies sent to suppliers; and a page that plays the supplier by delivering sample or uploaded `.eml` emails. |
 | **Documents** | Check a single trade document on its own: drag-and-drop upload with a live stepper, every processed run, and search and filters for status, decision, customer and date. Filters are kept in the URL. |
 | **Document detail** | The investigation view: a pipeline stepper, a decision summary that says *why*, extraction cards (value, confidence signal, evidence status, source snippet), customer rule validation (found vs expected), decision reasoning, the amendment draft with a copy button, and **View original document**, a side drawer that shows the source PDF or image next to the findings. Runs can be deleted to reset a demo. |
@@ -312,7 +411,7 @@ The UI works from desktop down to phone width. Tables scroll inside their contai
 | Extraction | Gemini 2.5 Pro (vision) through OpenRouter; `unpdf` for the PDF text cross-check |
 | Query layer | Gemini 2.5 Flash for classification, SQL generation and answers |
 | LLM client | A dependency-free, OpenAI-compatible JSON client with timeouts and retry classification |
-| Quality | Vitest (286 tests), strict TypeScript, ESLint, Prettier |
+| Quality | Vitest (375 tests), strict TypeScript, ESLint, Prettier |
 
 ---
 
@@ -395,7 +494,7 @@ Deploy the backend first, because the frontend needs its URL.
 
 Environment variables: `HOST=0.0.0.0`, `LLM_PROVIDER=openrouter`, `LLM_API_KEY`, the four model IDs (`EXTRACTOR_MODEL`, `QUERY_ROUTER_MODEL`, `SQL_MODEL`, `ANSWER_MODEL`, as in `backend/.env.example`), and `CORS_ORIGIN=https://<your-app>.vercel.app`. Do not set `PORT`: the host provides it.
 
-The database and uploaded files live on local disk. To keep them across restarts, attach a persistent disk and point `DATABASE_PATH` and `UPLOAD_DIR` at it (for example `/var/data/nova.db` and `/var/data/uploads`). Without a disk, data is lost on every restart or redeploy; the customer and rules are re-seeded automatically.
+The database, uploads and emails live on local disk. To keep them across restarts, attach a persistent disk and point `DATABASE_PATH`, `UPLOAD_DIR`, `EMAIL_DIR` and `INBOX_DIR` at it (for example `/var/data/nova.db`, `/var/data/uploads`, `/var/data/emails`, `/var/data/inbox`). Without a disk, data is lost on every restart or redeploy; the customer and rules are re-seeded automatically. The sample emails are read from the repository (`../samples/emails`), which works on Render as is.
 
 **Frontend: Vercel**
 
@@ -408,6 +507,8 @@ The database and uploaded files live on local disk. To keep them across restarts
 `frontend/vercel.json` sends every route to `index.html`, so deep links such as `/documents/run_…` work. `VITE_*` variables are read at **build** time, so redeploy the frontend after changing `VITE_API_URL`.
 
 After the first deploy, put the Vercel URL into the backend's `CORS_ORIGIN`. Vercel preview deployments get their own URLs; list them too (comma-separated), or use `*` for a demo.
+
+The live demo runs exactly this setup: [go-comet-ashen.vercel.app](https://go-comet-ashen.vercel.app) on Vercel, and the API at [nova-kytm.onrender.com](https://nova-kytm.onrender.com/api/health) on Render's free tier.
 
 
 ---
@@ -455,7 +556,7 @@ Six sample SU emails live in `samples/emails/` (each `.eml` with its PDFs in a f
 
 Three more emails in `samples/demo-emails/` are made for uploading by hand in a demo (**Simulate email → Upload .eml**), one per outcome: `demo-auto-approved.eml` (ready to approve), `demo-human-review.eml` (needs review, blurry packing list) and `demo-amendment-request.eml` (amendment ready, weights and HS code disagree). Each carries its three PDFs. Rebuild them with `npm run samples:demo` in `backend/`.
 
-In the app, open **Simulate email**, press **Deliver** on a sample, and follow it through **Inbox** (the mail arrives), **Processing** (it is read, step by step), then **Exceptions** or **Shipments** (where it lands). Each sample is accepted once; delete a shipment to receive its email again. Or from the command line, with the backend running:
+In the app (locally, or live at [go-comet-ashen.vercel.app](https://go-comet-ashen.vercel.app)), open **Simulate email**, press **Deliver** on a sample, and follow it through **Inbox** (the mail arrives), **Processing** (it is read, step by step), then **Exceptions** or **Shipments** (where it lands). Each sample is accepted once; delete a shipment to receive its email again. Or from the command line, with the backend running:
 
 ```bash
 curl -X POST http://127.0.0.1:3000/api/inbox/samples/03-validation/deliver
@@ -474,10 +575,14 @@ curl http://127.0.0.1:3000/api/shipments
 
 | | |
 |---|---|
-| **Live application** | _add the deployed URL_ |
+| **Live application** | https://go-comet-ashen.vercel.app (frontend on Vercel) |
+| **API** | https://nova-kytm.onrender.com/api/health (backend on Render) |
 | **Repository** | https://github.com/Dakshkweera/Go-Comet |
 | **Demo video (Part 1)** | https://www.youtube.com/watch?v=8P0aBQEIgec |
-| **Demo video (Part 2)** | _add the link after recording; script in [submission/PART2_DEMO_SCRIPT.md](submission/PART2_DEMO_SCRIPT.md)_ |
+| **Demo video (Part 2)** | https://www.youtube.com/watch?v=SzGOhgzxHNo |
+
+> [!NOTE]
+> The API runs on Render's free tier: after about 15 minutes idle it sleeps, so the first request can take up to a minute, and its data resets on every redeploy. Open **Simulate email** and deliver a sample to see a shipment end to end.
 
 ---
 
@@ -539,12 +644,12 @@ Errors always have the same shape: `{ "error": { "code": "RUN_NOT_FOUND", "messa
 ## ✓ Testing
 
 ```bash
-cd backend  && npm test      # 266 tests across 19 files
-cd frontend && npm test      # 20 tests across 2 files
+cd backend  && npm test      # 270 tests across 19 files
+cd frontend && npm test      # 105 tests across 3 files
 npm run typecheck            # in each folder; also npm run lint
 ```
 
-The suite covers the contracts; the database schema and migrations; the extractor, normalizer and quality gate (including fixtures of real Gemini output); every reliability rule and validator operator; the complete router decision table; the pipeline's persistence, retries, resume-after-crash and deletion; the SQL guard against injection and write attempts; the API end to end; and the UI's domain logic. For Part 2: email parsing, idempotency and threading; classification; every intake and validation rule; review actions and the send gate; and all six sample emails run end to end.
+The suite covers the contracts; the database schema and migrations; the extractor, normalizer and quality gate (including fixtures of real Gemini output); every reliability rule and validator operator; the complete router decision table; the pipeline's persistence, retries, resume-after-crash and deletion; the SQL guard against injection and write attempts; the API end to end; and the UI's domain logic. For Part 2: email parsing, idempotency and threading; classification; every intake and validation rule; review actions and the send gate; unexpected failures returning a clean 500; and all six sample emails run end to end. Every merge to `main` is also checked from a fresh clone.
 
 ---
 
@@ -559,6 +664,12 @@ The suite covers the contracts; the database schema and migrations; the extracto
 **Every stage is persisted.** Runs move through `RECEIVED → EXTRACTING → EXTRACTED → COMPLETED`, and each extraction attempt is stored with its status and error. Nothing is recomputed that doesn't need to be, and a crash never costs a second model call for work already done. The stored evidence and rule results can answer "why was this approved?" long after the rules have changed.
 
 **SQLite, no infrastructure.** An embedded database and configuration through environment variables: the backend is one Node process with a single database file. The UI is a static site that finds the API through `VITE_API_URL`, so the two deploy independently (Render and Vercel).
+
+**Intake before validation.** A shipment is validated only once its document set is complete and readable. The supplier is never asked to fix values based on a check of a partial set; the cost is that a validation problem may surface one cycle later when intake also needed a fix.
+
+**The owner document is a reference, not the truth.** Each field has an owner (the invoice for the invoice number and Incoterms, the BOL for the ports, the packing list for the weight). The owner is first checked against the customer rule; only then do the other documents have to match it. Without an owner or a rule, the documents simply have to agree, and the reply asks the supplier which value is right.
+
+**Unsure goes to a person, wrong goes to the supplier.** Review items are for Nova's own uncertainty, and the CG settles them on the same screen as the corrections. The reply always comes from code, so every value in it is exact, and the CG decides when it is sent.
 
 **Contracts at every boundary.** Each hand-off (extraction result, customer resolution, validation result, router decision, query response) is a Zod schema in `backend/src/schemas`. The frontend deploys separately, so it keeps its own typed copy of the API responses in `frontend/src/types/api.ts`.
 
@@ -593,7 +704,7 @@ Go-Comet/
 │   │   └── utils/
 │   ├── drizzle/                 # SQL migrations
 │   ├── tests/                   # Mirrors src/, plus recorded Gemini replies in fixtures/
-│   └── scripts/                 # Sample generator
+│   └── scripts/                 # Sample generators: invoices, SU emails, demo emails
 ├── frontend/                    # React UI, deployed on Vercel
 │   ├── src/
 │   │   ├── pages/               # Overview, Inbox, Processing, Exceptions, Shipments, ShipmentDetail, SentEmails,
@@ -607,9 +718,9 @@ Go-Comet/
 │   │   ├── data.ts              # Shared run store with polling
 │   │   └── router.tsx           # Minimal History-API router
 │   └── vercel.json              # SPA rewrites
-├── samples/                     # clean, mismatch and messy invoices; emails/ holds the Part 2 SU emails
-├── docs/                        # PRD, architecture, contracts, data model, decisions
-└── submission/                  # PRD and technical write-up (Markdown + PDF)
+├── samples/                     # Part 1 invoices; emails/ and demo-emails/ hold the Part 2 SU emails
+├── docs/                        # Architecture, contracts, data model, decisions, Part 2 design and frontend brief
+└── submission/                  # Part 1 PRD and technical write-up; Part 2 one-page PRD and demo script
 ```
 
 ---
@@ -618,10 +729,11 @@ Go-Comet/
 
 - **One configured customer.** Matching is exact after normalization, with no fuzzy matching. Customers and rules are seeded, not editable in the UI.
 - **Confidence is a signal, not a probability.** The 0.80 threshold is a policy setting, not a calibrated cut-off.
-- **No OCR fallback.** PDFs go to the vision model as they are. Image-only documents can't be cross-checked against a text layer, so their fields are marked *unverified*.
+- **No OCR fallback.** PDFs go to the vision model as they are. Image-only documents can't be cross-checked against a text layer, so their fields are marked *unverified*. OCR for scans only (never replacing the text layer) is the planned next step.
 - **A deliberately strict SQL guard.** It may reject some valid but unusual queries rather than risk an unsafe one.
 - **Missing values can carry a high confidence.** The model sometimes reports 1.0 for a value it left empty. The router treats any missing value as unreliable regardless, so the run still goes to human review, but the raw number is not meaningful there.
 - **Part 2 mail is simulated.** The screens follow [docs/PART2_FRONTEND_BRIEF.md](docs/PART2_FRONTEND_BRIEF.md), with the pages grouped by step (Inbox, Processing, Exceptions, Shipments); the inbox is a watched folder, not a real mailbox, and sending is simulated. Port aliases (Nhava Sheva vs Mumbai) and combined "invoice cum packing list" documents are not handled yet ([full list](docs/PART2_DESIGN.md#19-known-limitations)).
+- **Free hosting.** The live API sleeps when idle and loses its data on redeploy (see *Live Demo*). A persistent disk fixes the second.
 
 ---
 
